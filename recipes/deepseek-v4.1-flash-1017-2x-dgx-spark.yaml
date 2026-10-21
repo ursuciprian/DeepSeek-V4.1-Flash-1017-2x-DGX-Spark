@@ -1,0 +1,194 @@
+# DeepSeek-V4.1-Flash-1017 on two DGX Sparks, TP=2 over both RoCE rails, with a TensorFold-based engine.
+#
+# Weights: LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw @ afc7aa0aab98ee735c0f54e0a122019af1ac08f1.
+# Engram: layers 1 and 14 of deepseek-ai/DeepSeek-V4.1-Flash-1017 @ 1bae0e1088993b9b82de08f59de5be5a34e42170,
+# packed per rank with tools/pack_engram.py. docs/setup.md has every step.
+#
+# Run:  sparkrun run recipes/deepseek-v4.1-flash-1017-2x-dgx-spark.yaml --hosts <head>,<worker> \
+#         -e DS41_MASTER=<head CX-7 IPv4> --no-follow
+# then poll http://<head>:8888/health. A boot takes about 5 minutes.
+#
+# Host paths. sparkrun fills {model} in `command` from the `model:` field below and mounts that folder into the
+# container at the same path. It does not fill placeholders in `executor_config.volumes`, and `-o model=...` does
+# not change `model:`, so the four /srv/ds41 paths are fixed (model:, the two volumes and security_opt). Either put the
+# files there on both nodes (the layout in docs/setup.md), make /srv/ds41 a symlink to where they are, or edit the
+# four lines in your copy.
+#
+# Rendezvous. sparkrun passes the head's default-route address as --dist-init-addr, and /opt/ds41/sparkrun-serve
+# (in the image) uses it unless DS41_MASTER is set. On a Spark that address is often Wi-Fi, so pass the head's
+# CX-7 address with `-e DS41_MASTER=<ip>`. NCCL's RoCE v2 GID index is read from sysfs on each rank at start.
+#
+# Image: v1.0.0 (cand4 build, engine commit ee6ff92), digest sha256:d8a3f5bc255c58a403ce9ca2dae314d71dd8bae8998c807070821148d48a13d6
+description: DeepSeek-V4.1-Flash-1017 EXL3 2.9 bpw, TP=2 over two DGX Sparks, Engram rows from local NVMe
+model: /srv/ds41/checkpoint
+runtime: sglang
+container: ghcr.io/ursuciprian/ds41-tensorfold:v1.0.0
+
+min_nodes: 2
+max_nodes: 2
+
+metadata:
+  description: TensorFold-based Python engine with exact DSpark drafts, Engram rows from per-rank NVMe shards
+
+defaults:
+  port: 8888
+  host: 0.0.0.0
+  tensor_parallel: 2
+  served_model_name: deepseek-v4.1-flash-1017
+  context: 262144
+  parallel: 8
+  # Sampler for requests that send none. DeepSeek's card says T 1.0, top_p 1.0. With TF_DSV41_GPU_SAMPLE=1 (below)
+  # that sampler runs on the GPU and works; without it, top_p 1.0 with top_k 0 crashes both ranks (README, Status).
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 0
+  max_tokens: 65536
+
+executor_config:
+  entrypoint: ''
+  shm_size: 32gb
+  cap_add:
+    - IPC_LOCK          # RDMA memory registration (NCCL and the RoCE all-gather)
+  ulimit:
+    - memlock=-1:-1
+    - stack=67108864
+    - nofile=65535:65535
+  devices:
+    - /dev/infiniband
+  volumes:
+    - /srv/ds41/engram-shards:/engram:ro    # this rank's packed Engram shards
+    - /srv/ds41/tf-state:/state                  # request log; must be writable by the SSH user sparkrun runs as
+  # The Engram gate's C worker reads rows with io_uring (TF_DSV41_ENGRAM_CGATE below), which Docker's default seccomp
+  # profile refuses. seccomp-io-uring.json (next to this recipe) is Docker's default profile plus io_uring_setup,
+  # io_uring_enter and io_uring_register; copy it to this path on both nodes. Without the line the worker is meant to
+  # fall back to a thread pool of pread readers (not booted that way on my pair).
+  security_opt: [seccomp=/srv/ds41/seccomp-io-uring.json]
+
+env:
+  # fp32 router / indexer / mHC GEMMs must stay fp32: TF32 there caused reasoning loops
+  TORCH_ALLOW_TF32_CUBLAS_OVERRIDE: '0'
+  # Links: the DGX Spark default names for the CX-7 bootstrap port and the two RoCE functions. Check yours with
+  # `ip -br link` and `ibv_devices`, or delete these two lines and let sparkrun detect them.
+  NCCL_SOCKET_IFNAME: enp1s0f1np1
+  NCCL_IB_HCA: rocep1s0f1,roceP2p1s0f1
+  NCCL_CUMEM_ENABLE: '0'
+  # the engine's own RoCE all-gather over both rails
+  GLM53_TF_COMM_BACKEND: roce
+  GLM53_TF_ROCE_FAST: '1'
+  GLM53_TF_ROCE_MAX_KB: '1024'
+  GLM53_TF_REQUEST_LOG: /state/requests.jsonl     # one JSON line per request: sizes, timings, hashes
+  MALLOC_ARENA_MAX: '4'
+  MIMALLOC_ALLOW_THP: '0'
+  # caches kept across restarts in sparkrun's runtime cache
+  TF_DSV41_CALIB_DIR: /cache/runtime/dsv41-calib
+  CUDA_CACHE_PATH: /cache/runtime/nv/ComputeCache
+  CUDA_CACHE_MAXSIZE: '4294967296'
+  # memory: the pack's budget entry, the shared KV pool capped below parallel x context, free-memory floors
+  TF_DSV41_PACK: lib1017
+  TF_DSV41_POOL_TOKENS: '1048576'                 # 4 full contexts or 8 of ~128K; lowest MemAvailable 7.2 GiB under 8 x 128K (#8)
+  TF_DSV41_FLOOR_GIB: '5'
+  TF_DSV41_FLOOR_HARD_GIB: '4'
+  TF_DSV41_PREFILL_ADAPT_GIB: '4.5'
+  TF_DSV41_PREPARED: '0'
+  TF_DSV41_PREPARED_WRITE: '0'
+  TF_DSV41_SESSION_RAM_MIB: '256'
+  # Engram: packed per-rank shards (the /engram mount), native O_DIRECT reader, layer-1 gate run by a C worker
+  TF_DSV41_ENGRAM_DIR: /engram
+  TF_DSV41_ENGRAM_NATIVE: '1'
+  TF_DSV41_ENGRAM_GATE: '1'
+  TF_DSV41_ENGRAM_CGATE: '1'
+  TF_DSV41_ENGRAM_FUSE_DEC: '1'
+  # DSpark: exact drafts (keyed sampler, drafted == serial), lookup drafts on. Depth policy: ratio (draft length
+  # that maximizes expected tokens per round time), capped at 5, joint mode 2 for rounds with several requests.
+  # ROUND_MS is the wall time of a whole single-request round by verify rows 1..8, measured on my pair with the
+  # v1.0.0 image; rows past the list use the calibrated table.
+  TF_DSV41_DSPARK: '1'
+  TF_DSV41_DRAFT_DEPTH: '5'
+  TF_DSV41_DEPTH: ratio
+  TF_DSV41_DEPTH_JOINT: '2'
+  TF_DSV41_ROUND_MS: 26.26,31.08,35.93,40.52,43.32,46.42,51.29,54.28
+  TF_DSV41_SPEC_DRAFT: '1'
+  TF_DSV41_CALIB: real
+  TF_DSV41_GPU_SAMPLE: '1'                        # sample on the GPU for every sampler, card sampler included
+  # requests
+  TF_DSV41_ADMIT_HOLD_MS: '10'
+  TF_DSV41_THINKING: '1'
+  TF_DSV41_DEFAULT_EFFORT: high
+  TF_DSV41_GRAMMAR: '1'
+  TF_DSV41_TOOL_GRAMMAR: '0'
+  TF_DSV41_SCHEMA_PROMPT: '1'
+  TF_DSV41_DISCONNECT: '1'
+  TF_DSV41_IMAGES: native
+  TF_DSV41_VISION_PREP_MB: '64'
+  # decode kernels and graphs; MHC_FIN_CTAS, RG_SEL_ROWS and RG_NARROW make verify rows cheaper (same bits)
+  TF_DSV41_ATTN_CUDA: '1'
+  TF_DSV41_BRANCHES: '1'
+  TF_DSV41_BRANCHES_PRIO: side
+  TF_DSV41_DENSE: '0'
+  TF_DSV41_DENSE_V3: '1'
+  TF_DSV41_EXPERT_LOADS: '1'
+  TF_DSV41_EXPERT_MIN_K: '3'
+  TF_DSV41_EXPERT_RENORM: orig
+  TF_DSV41_EXPERT_TOPP: '1.0'
+  TF_DSV41_GRAPH_MODE: rows
+  TF_DSV41_INDEX_BUDGET_MIB: '64'
+  TF_DSV41_INDEX_DTOPK: '1'
+  TF_DSV41_INDEX_KV: fp8
+  TF_DSV41_INDEX_STREAM_MIN: '4096'
+  TF_DSV41_L2PF: '1'
+  TF_DSV41_L2PF_MB: '12'
+  TF_DSV41_L2PF_PACE_GBPS: '150'
+  TF_DSV41_MHC_BM: '64'
+  TF_DSV41_MHC_CUDA: '1'
+  TF_DSV41_MHC_DEC: '1'
+  TF_DSV41_MHC_FIN2: '1'
+  TF_DSV41_MHC_FIN_CTAS: '8'
+  TF_DSV41_MHC_FN: bf16
+  TF_DSV41_MHC_PF: '1'
+  TF_DSV41_MHC_WARPS: '8'
+  TF_DSV41_PARTIAL_BF16: '1'
+  TF_DSV41_PDL: '0'
+  TF_DSV41_PLAIN_TRITON: '1'
+  TF_DSV41_PLAN_LINK: rdma
+  TF_DSV41_PLAN_PIN: auto
+  TF_DSV41_PREFETCH_AHEAD: '1'
+  TF_DSV41_RG_NARROW: '4'
+  TF_DSV41_RG_SEL_ROWS: '2'
+  TF_DSV41_RG_TAIL: '1'
+  TF_DSV41_RMS_PAIR: '1'
+  TF_DSV41_ROPE_INPLACE: '1'
+  TF_DSV41_ROUTER: gemv
+  # prefill: fast kernels with the tuned grouped-GEMM table baked in the image, 2048-row chunks
+  TF_DSV41_PREFILL: full
+  TF_DSV41_PREFILL_KERNELS: fast
+  TF_DSV41_GM_TUNE: /opt/tf-cache/gm-tune-1017.json
+  TF_DSV41_EXPERT_PREFILL: '0'
+  TF_DSV41_FAST_EXPERTS: gm
+  TF_DSV41_FULL_CONE: '1'
+  TF_DSV41_PF_COPIES: '1'
+  TF_DSV41_PF_DENSE: fused
+  TF_DSV41_PREFILL_ATTN: fused
+  TF_DSV41_PREFILL_ATTN_BMQ: '32'
+  TF_DSV41_PREFILL_ATTN_WARPS: '8'
+  TF_DSV41_PREFILL_CHUNK: '2048'
+  TF_DSV41_PREFILL_FIRST_ROWS: '16384'
+  TF_DSV41_PREFILL_GATHER: bf16
+  TF_DSV41_PREFILL_ROUTER: gemv
+  TF_DSV41_PREFILL_ROWS: '2048'
+
+command: |
+  /opt/ds41/sparkrun-serve {model} \
+    --context {context} \
+    --parallel {parallel} \
+    --kv-dtype fp8 \
+    --no-update-check \
+    --temperature {temperature} \
+    --top-p {top_p} \
+    --top-k {top_k} \
+    --max-tokens {max_tokens} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port}
+
+recipe_version: '2'
+builder: docker-pull

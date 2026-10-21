@@ -1,0 +1,32 @@
+{
+ "code": [
+  "Write a Python module implementing an LRU cache class with get, put and a capacity limit, using only the standard library. Include type hints and a short docstring per method.",
+  "Write a Go HTTP handler that accepts a JSON body with a list of integers and returns their median and mean as JSON. Include input validation.",
+  "Write a Bash script that rotates log files in a directory: compress files older than 7 days with gzip and delete archives older than 30 days. Use set -euo pipefail.",
+  "Write a Terraform module for an AWS S3 bucket with versioning, server-side encryption with KMS, a lifecycle rule expiring noncurrent versions after 90 days, and blocked public access.",
+  "Implement Dijkstra's shortest path algorithm in Python with a binary heap, returning both distances and the predecessor map, plus a function to rebuild a path.",
+  "Write a Rust function that parses a CSV line with quoted fields (commas inside quotes, doubled quotes as escapes) into a Vec<String>, with unit tests.",
+  "Write a SQL schema for a library system (books, members, loans) with foreign keys and indexes, then a query listing members with overdue loans and the days overdue.",
+  "Write a TypeScript React component for a paginated table that fetches rows from /api/items?page=N, shows a loading state and handles errors."
+ ],
+ "prose": [
+  "Write a 400 word narrative about a lighthouse keeper on the night of a winter storm.",
+  "Describe, in about 400 words, a walk through a busy morning market in a coastal town, focusing on sounds and smells.",
+  "Write a 400 word letter from a retired engineer to a grandchild explaining why bridges are beautiful.",
+  "Write a 400 word short story about two strangers who share a train compartment across the Alps.",
+  "Write about 400 words describing the history of the printing press and how it changed everyday life.",
+  "Write a 400 word reflective essay on learning to cook a family recipe from memory.",
+  "Write a 400 word travel diary entry about arriving in a mountain village after a long bus ride.",
+  "Write a 400 word fable about a fox, a crow and a dry summer, with a clear moral at the end."
+ ],
+ "thinking": [
+  "A train leaves city A at 08:10 at 92 km/h; another leaves city B, 410 km away, at 08:40 at 118 km/h towards A. At what time and how far from A do they meet? Show the result clearly.",
+  "How many positive integers below 10,000 have digits that sum to 20? Give the number.",
+  "A bag has 5 red, 4 blue and 3 green balls. Three are drawn without replacement. What is the probability that all three colours appear? Give an exact fraction.",
+  "Find all real solutions of x^4 - 5x^2 + 4 = 0 and verify each one.",
+  "You have 12 coins, one counterfeit (heavier or lighter). Describe a strategy that finds it and whether it is heavier or lighter in 3 weighings.",
+  "Prove that the sum of the first n odd numbers is n squared, then compute the sum of odd numbers from 101 to 299.",
+  "A rectangle has perimeter 46 and diagonal 17. Find its side lengths.",
+  "In how many ways can 8 people be seated at a round table if two specific people refuse to sit next to each other?"
+ ]
+}

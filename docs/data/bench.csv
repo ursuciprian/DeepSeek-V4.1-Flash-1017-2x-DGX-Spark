@@ -1,0 +1,31 @@
+date,build,chart,series,x,value,unit,sampler,note
+2026-10-21,v1.0.0 (cand4),decode,code,1,90.69,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,code,2,111.6,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,code,4,129.73,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,code,8,167.46,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,prose,1,44.66,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,prose,2,65.46,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,prose,4,86.46,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,prose,8,113.88,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,thinking-75,1,75.06,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,thinking-75,2,97.85,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,thinking-75,4,116.65,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),decode,thinking-75,8,135.99,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-18,baseline,prefill,"exact kernels, C1",4,614,tok/s,,median of 3
+2026-10-18,baseline,prefill,"exact kernels, C1",32,906,tok/s,,median of 3
+2026-10-18,baseline,prefill,"exact kernels, C1",128,917,tok/s,,median of 3
+2026-10-21,v1.0.0 (cand4),prefill,"fast kernels, C1",4,1261.5,tok/s,,median of 3
+2026-10-21,v1.0.0 (cand4),prefill,"fast kernels, C1",32,2424.1,tok/s,,median of 3
+2026-10-21,v1.0.0 (cand4),prefill,"fast kernels, C1",128,2391.1,tok/s,,median of 3
+2026-10-21,v1.0.0 (cand4),prefill,"fast kernels, C4",4,1407.2,tok/s,,"median of 3, aggregate"
+2026-10-21,v1.0.0 (cand4),prefill,"fast kernels, C4",32,2397.1,tok/s,,"median of 3, aggregate"
+2026-10-21,v1.0.0 (cand4),prefill,"fast kernels, C4",128,2383.0,tok/s,,"median of 3, aggregate"
+2026-10-18,baseline,history,decode C1 code,0,74.7,tok/s,"T=1.0, top_p 0.95",median of 3
+2026-10-19,fast prefill + GPU sampler,history,decode C1 code,0,75.3,tok/s,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),history,decode C1 code,0,90.51,tok/s,"T=1.0, top_p 1.0",median of 3
+2026-10-18,baseline,history,decode C8 code,0,139,tok/s aggregate,"T=1.0, top_p 0.95",median of 3
+2026-10-19,fast prefill + GPU sampler,history,decode C8 code,0,144.2,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-21,v1.0.0 (cand4),history,decode C8 code,0,167.46,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-18,baseline,history,prefill C1 32K,0,906,tok/s,,median of 3
+2026-10-19,fast prefill + GPU sampler,history,prefill C1 32K,0,2421.4,tok/s,,median of 3
+2026-10-21,v1.0.0 (cand4),history,prefill C1 32K,0,2424.1,tok/s,,median of 3

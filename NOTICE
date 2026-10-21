@@ -1,0 +1,25 @@
+DeepSeek-V4.1-Flash-1017 on two DGX Sparks
+Copyright 2026 Ciprian Ursu
+
+This repository (recipes/, docs/, tools/, gate/) is licensed under the Apache License, Version 2.0. See LICENSE.
+
+recipes/seccomp-io-uring.json is Docker's default seccomp profile from https://github.com/moby/profiles
+(seccomp/default.json, Apache License 2.0, Copyright The Moby Authors) with one entry added that allows
+io_uring_setup, io_uring_enter and io_uring_register.
+
+tools/pack_engram.py is adapted from scripts/pack_engram.py of jayleaton/deepseek-v41-tensorfold-spark
+(https://github.com/jayleaton/deepseek-v41-tensorfold-spark, commit 2dcce03), Copyright 2026 Jay Leaton,
+Apache License 2.0. My changes: tensor offsets read from the safetensors headers, one rank per run, a
+self-test, a trial-division prime test, restructured functions. The NOTICE of that repository reads: "deepseek-v41-tensorfold-spark / Copyright 2026
+Jay Leaton (https://x.com/jayleaton) / This project's own code, scripts, benchmarks and documentation are
+licensed under the Apache License, Version 2.0."
+
+The engine image the recipe runs (ghcr.io/ursuciprian/ds41-tensorfold) is not part of this repository. It is built
+from my fork of TensorFold (https://github.com/ashhart/TensorFold, Apache License 2.0, Copyright 2026 TensorFold
+contributors) with Jay Leaton's DeepSeek-V4.1-Flash family (MIT, Copyright (c) 2026 Jay Leaton), his other
+changes (Apache License 2.0) and my own changes (Apache License 2.0). The license and notice files of each ship
+inside the image under /src/TensorFold.
+
+The model weights are not part of this repository either. The recipe serves
+LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw and the Engram tables of deepseek-ai/DeepSeek-V4.1-Flash-1017,
+both under the MIT License; their license files come with the downloads.
