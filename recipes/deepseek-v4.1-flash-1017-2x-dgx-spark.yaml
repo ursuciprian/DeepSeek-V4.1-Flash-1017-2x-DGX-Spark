@@ -18,7 +18,7 @@
 # (in the image) uses it unless DS41_MASTER is set. On a Spark that address is often Wi-Fi, so pass the head's
 # CX-7 address with `-e DS41_MASTER=<ip>`. NCCL's RoCE v2 GID index is read from sysfs on each rank at start.
 #
-# Image: v1.0.0 (cand4 build, engine commit ee6ff92), digest sha256:d8a3f5bc255c58a403ce9ca2dae314d71dd8bae8998c807070821148d48a13d6
+# Image: v1.0.1 (engine commit ee6ff92; v1.0.0 plus notice changes), digest sha256:e87b0eb3919c0dc3e571bd6e0b2800ab24b55353481d7abf0db992ece1f0c399
 description: DeepSeek-V4.1-Flash-1017 EXL3 2.9 bpw, TP=2 over two DGX Sparks, Engram rows from local NVMe
 model: /srv/ds41/checkpoint
 runtime: sglang

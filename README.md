@@ -23,7 +23,7 @@
 | Prefill C1, 32K | 2,424 tok/s | one prompt, fresh nonce, `max_tokens` 1 | n/a | 2026-10-21 | median of 3 |
 | TTFT, 32K prompt | 13.5 s | same | n/a | 2026-10-21 | median of 3 |
 
-Image `ds41-tf:cand4` (engine commit `ee6ff92`), published as `ghcr.io/ursuciprian/ds41-tensorfold:v1.0.0`, with the settings in
+Image `ghcr.io/ursuciprian/ds41-tensorfold:v1.0.1` (engine commit `ee6ff92`), with the settings in
 [recipes/](recipes/). A C1 repeat runs one prompt, so the three C1 code repeats are three prompts: 78.2, 90.5 and
 99.1 tok/s.
 
@@ -54,7 +54,7 @@ sparkrun run deepseek-v4.1-flash-1017-2x-dgx-spark --hosts <head>,<worker> \
 
 `DS41_MASTER` is the head's address on the CX-7 link. Without it the ranks meet on the head's default-route
 address, which on a Spark is often Wi-Fi. sparkrun pulls the image
-`ghcr.io/ursuciprian/ds41-tensorfold:v1.0.0` (about 11 GB to download, 25 GB unpacked) on the first
+`ghcr.io/ursuciprian/ds41-tensorfold:v1.0.1` (about 11 GB to download, 25 GB unpacked) on the first
 run.
 
 `sparkrun run` returns before the engine is ready. A boot takes about 5 minutes (283-300 s on three boots on my
@@ -193,16 +193,17 @@ depth policy with a measured round table, cheaper verify rows, decode at T=1.0 t
 
 ## Status
 
-- Recipe: the v1.0.0 settings (2026-10-19 settings plus the ratio depth policy and round table, cheaper verify
-  rows and the C Engram gate) are in [recipes/](recipes/). I booted them with sparkrun on my pair; the file here
+- Recipe: the v1.0.1 settings (2026-10-19 settings plus the ratio depth policy and round table, cheaper verify
+  rows, the C Engram gate, a 1M-token KV pool and 32 graph rows) are in [recipes/](recipes/). I booted them with sparkrun on my pair; the file here
   differs from the booted one in host paths, container mount points, the request log name, how the rendezvous
   address is passed, an extra `SYS_PTRACE` capability for debugging on my boots, the server default top_p
   (1.0 on my boots, 0.95 here), and, for the decode and prefill tables, seccomp unconfined instead of the narrow
   profile (the second gate ran with the profile).
 - Gate: the full release gate (10 lanes plus exactness, hardmode and fidelity to 248K included) passed on the
-  v1.0.0 image on 2026-10-21 ([#5](../../issues/5)).
-- Image: `ghcr.io/ursuciprian/ds41-tensorfold:v1.0.0` (also tagged `cand4-ee6ff92`), digest
-  `sha256:d8a3f5bc255c58a403ce9ca2dae314d71dd8bae8998c807070821148d48a13d6`.
+  v1.0.0 image on 2026-10-21 ([#5](../../issues/5)) and again on 2026-10-22 with the 1M pool and the session store
+  ([#8](../../issues/8)). v1.0.1 is that image with notice changes only.
+- Image: `ghcr.io/ursuciprian/ds41-tensorfold:v1.0.1`, digest
+  `sha256:e87b0eb3919c0dc3e571bd6e0b2800ab24b55353481d7abf0db992ece1f0c399`.
 - In this release: depth policy [#2](../../issues/2) and cheaper verify rows [#3](../../issues/3). Not in it: the
   drafter head trim [#4](../../issues/4).
 - In progress, tracked as issues; each change has to pass the gate before it lands in the recipe:
