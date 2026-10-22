@@ -22,7 +22,7 @@
 description: DeepSeek-V4.1-Flash-1017 EXL3 2.9 bpw, TP=2 over two DGX Sparks, Engram rows from local NVMe
 model: /srv/ds41/checkpoint
 runtime: sglang
-container: ghcr.io/ursuciprian/ds41-tensorfold:v1.0.0
+container: ghcr.io/ursuciprian/ds41-tensorfold:v1.0.1
 
 min_nodes: 2
 max_nodes: 2
@@ -131,6 +131,7 @@ env:
   TF_DSV41_EXPERT_RENORM: orig
   TF_DSV41_EXPERT_TOPP: '1.0'
   TF_DSV41_GRAPH_MODE: rows
+  TF_DSV41_GRAPH_ROWS_MAX: '32'                   # my A/B on v1.0.1: code C8 +4% vs the default 64, other cells equal (BENCHMARKS)
   TF_DSV41_INDEX_BUDGET_MIB: '64'
   TF_DSV41_INDEX_DTOPK: '1'
   TF_DSV41_INDEX_KV: fp8

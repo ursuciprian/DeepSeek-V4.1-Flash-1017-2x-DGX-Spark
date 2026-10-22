@@ -4,22 +4,22 @@
 
 <table align="center">
   <tr>
-    <td align="center"><h2>90.5 tok/s</h2><b>decode C1</b><br><sub>code, T=1.0, top_p 1.0</sub></td>
-    <td align="center"><h2>167 tok/s</h2><b>decode aggregate C8</b><br><sub>code, T=1.0, top_p 1.0</sub></td>
+    <td align="center"><h2>89 tok/s</h2><b>decode C1</b><br><sub>code, T=1.0, top_p 1.0</sub></td>
+    <td align="center"><h2>164 tok/s</h2><b>decode aggregate C8</b><br><sub>code, T=1.0, top_p 1.0</sub></td>
     <td align="center"><h2>2,424 tok/s</h2><b>prefill C1, 32K</b><br><sub>fast prefill kernels</sub></td>
     <td align="center"><h2>13.5 s</h2><b>TTFT, 32K prompt</b><br><sub>C1, cold prefix</sub></td>
   </tr>
 </table>
 
-<p align="center"><sub>262K context, 8 sequences in parallel, FP8 KV, DSpark drafts, median of 3 runs on my pair, 2026-10-21, v1.0.0</sub></p>
+<p align="center"><sub>262K context, 8 sequences in parallel, FP8 KV, DSpark drafts, median of 3 runs on my pair, v1.0.1 release recipe (decode 2026-10-22, prefill 2026-10-21)</sub></p>
 
 <details>
 <summary><sub>Measurement details</sub></summary>
 
 | Metric | Value | Workload | Sampling | Date | Statistic |
 |---|--:|---|---|---|---|
-| Decode C1, code | 90.5 tok/s | 3 of 8 short code prompts, one per repeat, 512 tokens, thinking off | T=1.0, top_p 1.0 | 2026-10-21 | median of 3, per stream |
-| Decode aggregate C8, code | 167.5 tok/s | same prompts, 8 at a time | T=1.0, top_p 1.0 | 2026-10-21 | median of 3 |
+| Decode C1, code | 88.0 / 89.4 tok/s | 3 of 8 short code prompts, one per repeat, 512 tokens, thinking off | T=1.0, top_p 1.0 | 2026-10-22 | median of 3, two boots |
+| Decode aggregate C8, code | 163.1 / 164.4 tok/s | same prompts, 8 at a time | T=1.0, top_p 1.0 | 2026-10-22 | median of 3, two boots |
 | Prefill C1, 32K | 2,424 tok/s | one prompt, fresh nonce, `max_tokens` 1 | n/a | 2026-10-21 | median of 3 |
 | TTFT, 32K prompt | 13.5 s | same | n/a | 2026-10-21 | median of 3 |
 

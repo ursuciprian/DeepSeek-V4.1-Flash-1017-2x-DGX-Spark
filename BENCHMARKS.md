@@ -3,6 +3,32 @@
 Every number here comes from my two DGX Sparks. The newest results are first; the older sections follow
 unchanged. Chart data for the README: [docs/data/bench.csv](docs/data/bench.csv).
 
+## 2026-10-22: v1.0.1 release recipe
+
+v1.0.1 is the v1.0.0 image with notice changes only (same engine commit `ee6ff92`). The release recipe differs from
+the 2026-10-21 boots in three settings: a KV pool of 1,048,576 tokens ([#8](../../issues/8)), the engine's default
+session store (on), and `TF_DSV41_GRAPH_ROWS_MAX=32`, which I set from the A/B below. Two full gate runs passed on
+these settings (one with the 1M pool alone, one with all three changes): every lane, exactness 32 of 32 at C1 and
+C8, lowest MemAvailable 6.7 GiB.
+
+Graph rows A/B, same image and recipe, boots in the order 64, 32, 32, 64. Card sampler (T=1.0, top_p 1.0), 512-token
+replies, aggregate tok/s, median of 3 per boot:
+
+| Workload | C | 64 (default), boot 1 / 2 | 32, boot 1 / 2 |
+|---|--:|--:|--:|
+| code | 1 | 88.2 / 89.2 | 88.0 / 89.4 |
+| code | 4 | 135.6 / 127.8 | 128.7 / 127.2 |
+| code | 8 | 155.8 / 159.1 | 163.1 / 164.4 |
+| prose | 1 | 44.3 / 44.4 | 44.2 / 44.3 |
+| prose | 4 | 85.0 / 85.2 | 85.5 / 84.7 |
+| prose | 8 | 112.8 / 113.1 | 112.0 / 111.1 |
+| thinking-75 | 1 | 74.7 / 75.0 | 75.0 / 74.4 |
+| thinking-75 | 4 | 117.4 / 115.7 | 116.8 / 115.0 |
+| thinking-75 | 8 | 133.8 / 133.3 | 134.4 / 132.9 |
+
+32 rows gives code at C8 about 4% more; the other cells move within run-to-run noise. The decode tables in the
+next section ran on the 2026-10-21 settings; on the release recipe code at C8 lands at 163-164 instead of 167.5.
+
 ## 2026-10-21: v1.0.0 (cand4)
 
 What changed against 2026-10-19, all in the recipe now:
