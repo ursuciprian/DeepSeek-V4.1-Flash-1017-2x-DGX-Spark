@@ -6,12 +6,12 @@
   <tr>
     <td align="center"><h2>89 tok/s</h2><b>decode C1</b><br><sub>code, T=1.0, top_p 1.0</sub></td>
     <td align="center"><h2>164 tok/s</h2><b>decode aggregate C8</b><br><sub>code, T=1.0, top_p 1.0</sub></td>
-    <td align="center"><h2>2,424 tok/s</h2><b>prefill C1, 32K</b><br><sub>fast prefill kernels</sub></td>
-    <td align="center"><h2>13.5 s</h2><b>TTFT, 32K prompt</b><br><sub>C1, cold prefix</sub></td>
+    <td align="center"><h2>1,665 tok/s</h2><b>prefill C1, 32K</b><br><sub>real text, fast prefill kernels</sub></td>
+    <td align="center"><h2>19.7 s</h2><b>TTFT, 32K prompt</b><br><sub>C1, real text, cold prefix</sub></td>
   </tr>
 </table>
 
-<p align="center"><sub>262K context, 8 sequences in parallel, FP8 KV, DSpark drafts, median of 3 runs on my pair, v1.0.1 release recipe (decode 2026-10-22, prefill 2026-10-21)</sub></p>
+<p align="center"><sub>262K context, 8 sequences in parallel, FP8 KV, DSpark drafts, median of 3 runs on my pair, v1.0.1 release recipe, 2026-10-22</sub></p>
 
 <details>
 <summary><sub>Measurement details</sub></summary>
@@ -20,8 +20,8 @@
 |---|--:|---|---|---|---|
 | Decode C1, code | 88.0 / 89.4 tok/s | 3 of 8 short code prompts, one per repeat, 512 tokens, thinking off | T=1.0, top_p 1.0 | 2026-10-22 | median of 3, two boots |
 | Decode aggregate C8, code | 163.1 / 164.4 tok/s | same prompts, 8 at a time | T=1.0, top_p 1.0 | 2026-10-22 | median of 3, two boots |
-| Prefill C1, 32K | 2,424 tok/s | one prompt, fresh nonce, `max_tokens` 1 | n/a | 2026-10-21 | median of 3 |
-| TTFT, 32K prompt | 13.5 s | same | n/a | 2026-10-21 | median of 3 |
+| Prefill C1, 32K | 1,665 tok/s | one 32,790-token prompt of real text (docs, changelogs, license texts), fresh nonce, `max_tokens` 1 | n/a | 2026-10-22 | median of 3 |
+| TTFT, 32K prompt | 19.7 s | same | n/a | 2026-10-22 | median of 3 |
 
 Image `ghcr.io/ursuciprian/ds41-tensorfold:v1.0.1` (engine commit `ee6ff92`), with the settings in
 [recipes/](recipes/). A C1 repeat runs one prompt, so the three C1 code repeats are three prompts: 78.2, 90.5 and
@@ -118,7 +118,8 @@ Stop it with `sparkrun stop --all`.
 | Decode C1, thinking-75 | 61.3 tok/s | 63.3 tok/s | 74.9 tok/s |
 | Decode aggregate C8, code | 139 tok/s | 144 tok/s | 167 tok/s |
 | Decode aggregate C8, thinking-75 | 106 tok/s | 117 tok/s | 136 tok/s |
-| Prefill C1, 4K / 32K / 128K | 614 / 906 / 917 tok/s | 1,405 / 2,421 / 2,394 tok/s | 1,262 / 2,424 / 2,391 tok/s |
+| Prefill C1, 4K / 32K / 128K, repeated text | 614 / 906 / 917 tok/s | 1,405 / 2,421 / 2,394 tok/s | 1,262 / 2,424 / 2,391 tok/s |
+| Prefill C1, 4K / 32K / 128K, real text | | | 1,131 / 1,665 / 1,831 tok/s (v1.0.1, 2026-10-22) |
 | Sampler in the decode rows | T=1.0, top_p 0.95 | T=1.0, top_p 1.0 (card) | T=1.0, top_p 1.0 (card) |
 | DeepSeek's card sampler | crashes both ranks | works (GPU sampler) | works (GPU sampler) |
 | Release gate | quality smoke only | 4 lanes pass | full gate, all lanes pass |
@@ -128,6 +129,8 @@ The baseline's decode rows use top_p 0.95, because the card sampler crashed that
 Prefill at 4K C1 varies from boot to boot: on 2026-10-19 two boots of one configuration gave 1,205 and 1,425 tok/s,
 and the three 4K prompts of the 2026-10-21 run gave 1,211, 1,262 and 1,488 tok/s. I do not read 1,405 to 1,262 as
 a regression.
+The repeated-text rows use a prompt that repeats one paragraph after a fresh nonce. On real text the same
+engine prefills 10% to 31% slower; [BENCHMARKS.md](BENCHMARKS.md) has the method.
 
 ## Performance
 
@@ -136,12 +139,14 @@ a regression.
 
 <sub>Left: aggregate decode tok/s by concurrency, v1.0.0 recipe on 2026-10-21, T=1.0 top_p 1.0, 8 short prompts per
 workload, 512 tokens (reasoning included for thinking-75), median of 3. Right: prefill tok/s by prompt length, one
-request (C1) or four at once (C4, aggregate), fresh nonce per prompt so nothing comes from a prefix cache, median of 3.
+request (C1) or four at once (C4, aggregate), fresh nonce per prompt so nothing comes from a prefix cache, median of 3,
+prompt text is one paragraph repeated (real text is slower, see below).
 Exact kernels are the 2026-10-18 baseline; fast kernels are the current recipe.</sub>
 
 Decode goes from 90.5 tok/s at C1 to 167 tok/s at C8 on code. Prose drafts accept fewer tokens per round, so it
-stays lower at every concurrency. The fast prefill kernels are 2.1x to 2.7x faster than the exact ones and stay
-near 2,400 tok/s out to 128K. MemAvailable stayed at or above 8.1 GiB on both ranks from boot to the end of these runs.
+stays lower at every concurrency. The fast prefill kernels are 2.1x to 2.7x faster than the exact ones. On real text
+(v1.0.1, 2026-10-22) prefill runs 1,131 tok/s at 4K, 1,665 at 32K and 1,831 at 128K, against about 2,400 on the
+repeated paragraph. MemAvailable stayed at or above 8.1 GiB on both ranks from boot to the end of these runs.
 
 ## Quality gate
 
