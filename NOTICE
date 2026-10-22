@@ -20,6 +20,15 @@ contributors) with Jay Leaton's DeepSeek-V4.1-Flash family (MIT, Copyright (c) 2
 changes (Apache License 2.0) and my own changes (Apache License 2.0). The license and notice files of each ship
 inside the image under /src/TensorFold.
 
+The engine image is built on NVIDIA's NGC PyTorch container (nvcr.io/nvidia/pytorch:26.07) and contains its
+layers unchanged (CUDA, cuDNN, NCCL, PyTorch and other NVIDIA software). Those parts are governed by the NVIDIA
+Software License Agreement (https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/)
+and the Product-Specific Terms for NVIDIA AI Products
+(https://www.nvidia.com/en-us/agreements/enterprise-software/product-specific-terms-for-ai-products/); the
+container's own /workspace/license.txt is kept in the image. Pulling or running the image means accepting those
+terms for the NVIDIA parts. NVIDIA's CUDA, cuDNN and TensorRT software may only be used on NVIDIA platforms. This
+project is not endorsed by NVIDIA. Open-source components inside the image keep their own licenses.
+
 The model weights are not part of this repository either. The recipe serves
 LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw and the Engram tables of deepseek-ai/DeepSeek-V4.1-Flash-1017,
 both under the MIT License; their license files come with the downloads.

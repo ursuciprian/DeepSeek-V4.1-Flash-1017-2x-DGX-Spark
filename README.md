@@ -235,4 +235,6 @@ depth policy with a measured round table, cheaper verify rows, decode at T=1.0 t
 
 Apache-2.0 for this repository ([LICENSE](LICENSE)). The Inter font in docs/fonts is SIL OFL 1.1
 ([docs/fonts/LICENSE.txt](docs/fonts/LICENSE.txt)). The engine image and the model weights have their own licenses;
-see [NOTICE](NOTICE).
+see [NOTICE](NOTICE). The image is built on NVIDIA's NGC PyTorch container: pulling or running it means accepting
+the NVIDIA Software License Agreement and the Product-Specific Terms for NVIDIA AI Products for the NVIDIA parts
+(links in NOTICE).
