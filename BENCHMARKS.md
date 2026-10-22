@@ -29,6 +29,26 @@ replies, aggregate tok/s, median of 3 per boot:
 32 rows gives code at C8 about 4% more; the other cells move within run-to-run noise. The decode tables in the
 next section ran on the 2026-10-21 settings; on the release recipe code at C8 lands at 163-164 instead of 167.5.
 
+### Prefill on real text
+
+The prefill tables in the older sections use one paragraph repeated after a fresh nonce. I measured the release
+recipe again with real text: a fixed shuffle of the docs, changelogs, Python package docs and license texts on a
+Spark, cut with the model's tokenizer to the target length, a different slice for every prompt, a fresh nonce at the
+start, `max_tokens` 1, one request at a time (C1), median of 3.
+
+| Prompt tokens | Real text tok/s | TTFT | Repeated paragraph tok/s (2026-10-21) |
+|--:|--:|--:|--:|
+| 4,116 | 1,131 | 3.6 s | 1,262 |
+| 32,790 | 1,665 | 19.7 s | 2,424 |
+| 131,093 | 1,831 | 71.6 s | 2,391 |
+
+Real text is 10% slower at 4K, 31% at 32K and 23% at 128K. I have not isolated the cause yet. The three prompts per
+size gave 1,068 / 1,131 / 1,147, 1,641 / 1,665 / 1,672 and 1,763 / 1,831 / 1,835 tok/s. A first run with prompts cut
+by character count (3,000 to 165,000 tokens) gave the same picture. Lowest MemAvailable 7.2 GiB.
+
+Time to first token on a short prompt (one sentence, `max_tokens` 1, median of 5): 0.338 s on `/v1/chat/completions`
+and 0.225 s on `/v1/completions`.
+
 ## 2026-10-21: v1.0.0 (cand4)
 
 What changed against 2026-10-19, all in the recipe now:
