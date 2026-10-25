@@ -83,10 +83,11 @@ def lines(ax, series, xlabel, ylabel, xticks, dashed=(), legend="upper left"):
 
 def decode(data):
     fig, ax = axes()
-    lines(ax, data["decode"], "concurrent requests", "aggregate decode tok/s", [1, 2, 4, 8])
+    xs = sorted({x for pts in data["decode"].values() for x, _, _ in pts})   # only the concurrencies measured
+    lines(ax, data["decode"], "concurrent requests", "aggregate decode tok/s", xs)
     ax.set_xscale("log", base=2)
-    ax.set_xticks([1, 2, 4, 8])
-    ax.set_xticklabels(["1", "2", "4", "8"])
+    ax.set_xticks(xs)
+    ax.set_xticklabels([str(x) for x in xs])
     ax.minorticks_off()
     ax.set_xlim(0.85, 11)
     return fig
@@ -102,6 +103,7 @@ def prefill(data):
     ax.set_xticklabels(["4K", "32K", "128K"])
     ax.minorticks_off()
     ax.set_xlim(3.4, 190)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=10.5, labelcolor=T["ink"])
     return fig
 
 
@@ -126,7 +128,36 @@ def history(data):
     return fig
 
 
-CHARTS = {"decode": decode, "prefill": prefill, "history": history}
+def compare(data):
+    """Change per workload and concurrency between two builds, from rows of the same chart that differ in build."""
+    rows = []
+    for i, (name, pts) in enumerate(data["compare"].items()):
+        by = defaultdict(dict)
+        for x, v, r in pts:
+            by[x][r["build"]] = v
+        for x in sorted(by):
+            (b0, v0), (b1, v1) = sorted(by[x].items())   # older build first (v1.0.1 < v1.1.0)
+            rows.append((f"{name}  C{x}", v0, v1, T["series"][i % len(T["series"])]))
+    fig, ax = plt.subplots(figsize=(6.4, 0.36 * len(rows) + 0.9))
+    ys = range(len(rows))[::-1]
+    pct = [(v1 / v0 - 1) * 100 for _, v0, v1, _ in rows]
+    ax.barh(list(ys), pct, color=[c for *_, c in rows], height=0.62)
+    for y, p, (_, v0, v1, _) in zip(ys, pct, rows):
+        ax.annotate(f"{p:+.1f}%   {v0:,.1f} \u2192 {v1:,.1f}", (max(p, 0), y), xytext=(6, 0),
+                    textcoords="offset points", va="center", fontsize=10.5, color=T["ink"])
+    ax.set_yticks(list(ys))
+    ax.set_yticklabels([n for n, *_ in rows])
+    ax.tick_params(axis="y", length=0)
+    ax.axvline(0, color=T["axis"], lw=0.8)
+    ax.set_xlim(min(0, min(pct)) - 0.5, max(pct) * 2.1)
+    ax.set_xticks([])
+    ax.spines["bottom"].set_visible(False)
+    ax.set_xlabel(f"aggregate decode tok/s, {b0} \u2192 {b1}, same prompts and seeds")
+    fig.tight_layout()
+    return fig
+
+
+CHARTS = {"decode": decode, "prefill": prefill, "history": history, "compare": compare}
 
 
 def main():
