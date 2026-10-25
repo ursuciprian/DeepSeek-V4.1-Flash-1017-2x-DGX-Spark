@@ -32,3 +32,9 @@ project is not endorsed by NVIDIA. Open-source components inside the image keep 
 The model weights are not part of this repository either. The recipe serves
 LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw and the Engram tables of deepseek-ai/DeepSeek-V4.1-Flash-1017,
 both under the MIT License; their license files come with the downloads.
+
+The drafter overlay the recipe serves (drafter D1, https://huggingface.co/ursuciprian/DeepSeek-V4.1-Flash-1017-DSpark-D1)
+is not part of this repository. It replaces the DSpark drafter tensors (mtp.*) of
+LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw with my refit of them, and is published under that checkpoint's
+MIT License. The prompts used to fit it came from ten public datasets, credited with their licenses on its model card;
+no dataset text is part of the overlay or this repository.

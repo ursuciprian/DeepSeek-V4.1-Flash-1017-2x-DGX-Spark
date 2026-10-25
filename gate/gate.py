@@ -139,7 +139,7 @@ def p_fidelity(a):
         good = r["counts"]["exact"] >= need
         ok &= good
         if r["actual_prompt_tokens"]:                              # recalibrate chars/token for the next rung
-            cpt *= r["actual_prompt_tokens"] / depth
+            cpt *= depth / r["actual_prompt_tokens"]               # more tokens than asked: fewer chars a token
         out.append({"depth": depth, "actual": r["actual_prompt_tokens"], "counts": r["counts"], "need": need,
                     "pass": good})
         keep("fidelity", *[x["cmd"] for x in r["results"]])

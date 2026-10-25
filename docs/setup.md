@@ -1,7 +1,8 @@
 # Setup
 
 The steps I follow to get two DGX Sparks from a clean install to a running server: download the pinned weights,
-pack the Engram tables per rank, copy everything to the worker, free display memory, and set up memory guards.
+pack the Engram tables per rank, copy everything to the worker, add the drafter overlay, free display memory, and
+set up memory guards.
 
 In the commands, "head" is the node that serves HTTP (rank 0) and "worker" is the other one (rank 1).
 `<worker-cx7>` is the worker's IPv4 address on the CX-7 link, and `<head-cx7>` the head's.
@@ -13,6 +14,7 @@ The recipe expects this on both nodes:
 ```
 /srv/ds41/
   checkpoint/              EXL3 2.9 bpw checkpoint, the same on both nodes        197 GiB
+  checkpoint-d1/           hard links to checkpoint/, plus the drafter overlay   0.5 GiB more
   engram-shards/      this node's packed Engram shards                      94.4 GiB
     engram-l1-r<rank>of2.bin
     engram-l14-r<rank>of2.bin
@@ -118,6 +120,36 @@ rm -r /srv/ds41/engram-r1
 
 Both nodes must end up with the same checkpoint at the same path. Two ranks with different weights can serve
 wrong text instead of failing.
+
+## Drafter D1
+
+The recipe serves `/srv/ds41/checkpoint-d1`: the checkpoint with its DSpark drafter tensors (`mtp.*`) replaced by
+my refit. It is the checkpoint folder as hard links, plus one overlay file and an index that points the drafter
+tensors at it. The main model's tensors are the same files. Hard links, not symlinks, because sparkrun mounts only
+the `model:` folder into the container.
+
+The overlay fits only the checkpoint at revision `afc7aa0a`. On both nodes, once the checkpoint is in place:
+
+```sh
+uvx --from huggingface_hub hf download ursuciprian/DeepSeek-V4.1-Flash-1017-DSpark-D1 \
+  ov0-overlay-000.safetensors model.safetensors.index.json \
+  --revision ca1a99a8f07e4ec45addc71d77f5fc73ee3b1c5f --local-dir /srv/ds41/d1-overlay
+cd /srv/ds41/d1-overlay && sha256sum -c - <<'EOF'
+85bd27f53eade78b4e81ef317668bc94aaa9c71992e0b795fe1e7793a358bedc  ov0-overlay-000.safetensors
+d68198f7707489eae0fc42dc3b8bbad2cffff53673f7b140e39fc8d5332ca1cd  model.safetensors.index.json
+EOF
+cp -al /srv/ds41/checkpoint /srv/ds41/checkpoint-d1
+rm /srv/ds41/checkpoint-d1/model.safetensors.index.json
+cp /srv/ds41/d1-overlay/ov0-overlay-000.safetensors /srv/ds41/d1-overlay/model.safetensors.index.json \
+  /srv/ds41/checkpoint-d1/
+```
+
+Remove the linked index before copying the new one in: writing over it in place would change the checkpoint's
+index too, since both names are links to the same file. The new index differs from the checkpoint's in 165 entries,
+all `mtp.*`.
+
+To serve with the checkpoint's own drafter instead, set `model: /srv/ds41/checkpoint` in your copy of the recipe.
+Replies are the same either way, because the engine verifies every draft; D1 changes how many drafts it accepts.
 
 ## Run headless
 

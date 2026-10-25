@@ -1,16 +1,13 @@
 date,build,chart,series,x,value,unit,sampler,note
-2026-10-21,v1.0.0 (cand4),decode,code,1,90.69,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,code,2,111.6,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,code,4,129.73,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,code,8,167.46,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,prose,1,44.66,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,prose,2,65.46,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,prose,4,86.46,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,prose,8,113.88,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,thinking-75,1,75.06,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,thinking-75,2,97.85,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,thinking-75,4,116.65,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
-2026-10-21,v1.0.0 (cand4),decode,thinking-75,8,135.99,tok/s aggregate,"T=1.0, top_p 1.0",median of 3
+2026-10-25,v1.1.0,decode,code,1,94.88,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,decode,code,4,135.31,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,decode,code,8,169.04,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,decode,prose,1,49.98,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,decode,prose,4,96.68,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,decode,prose,8,125.39,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,decode,thinking-75,1,75.23,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,decode,thinking-75,4,119.5,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,decode,thinking-75,8,139.8,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
 2026-10-18,baseline,prefill,"exact kernels, C1",4,614,tok/s,,median of 3
 2026-10-18,baseline,prefill,"exact kernels, C1",32,906,tok/s,,median of 3
 2026-10-18,baseline,prefill,"exact kernels, C1",128,917,tok/s,,median of 3
@@ -20,6 +17,9 @@ date,build,chart,series,x,value,unit,sampler,note
 2026-10-21,v1.0.0 (cand4),prefill,"fast kernels, C4",4,1407.2,tok/s,,"median of 3, aggregate"
 2026-10-21,v1.0.0 (cand4),prefill,"fast kernels, C4",32,2397.1,tok/s,,"median of 3, aggregate"
 2026-10-21,v1.0.0 (cand4),prefill,"fast kernels, C4",128,2383.0,tok/s,,"median of 3, aggregate"
+2026-10-25,v1.1.0,prefill,"real text, C1 (v1.1.0)",4,1122.2,tok/s,,median of 3 prompts x 2 boots
+2026-10-25,v1.1.0,prefill,"real text, C1 (v1.1.0)",32,1701.2,tok/s,,median of 3 prompts x 2 boots
+2026-10-25,v1.1.0,prefill,"real text, C1 (v1.1.0)",128,1842.3,tok/s,,median of 3 prompts x 2 boots
 2026-10-18,baseline,history,decode C1 code,0,74.7,tok/s,"T=1.0, top_p 0.95",median of 3
 2026-10-19,fast prefill + GPU sampler,history,decode C1 code,0,75.3,tok/s,"T=1.0, top_p 1.0",median of 3
 2026-10-21,v1.0.0 (cand4),history,decode C1 code,0,90.51,tok/s,"T=1.0, top_p 1.0",median of 3
@@ -29,3 +29,21 @@ date,build,chart,series,x,value,unit,sampler,note
 2026-10-18,baseline,history,prefill C1 32K,0,906,tok/s,,median of 3
 2026-10-19,fast prefill + GPU sampler,history,prefill C1 32K,0,2421.4,tok/s,,median of 3
 2026-10-21,v1.0.0 (cand4),history,prefill C1 32K,0,2424.1,tok/s,,median of 3
+2026-10-22,v1.0.1,compare,code,1,93.44,tok/s aggregate,"T=1.0, top_p 1.0","runs 1-2 of 3 x 2 boots, same prompts and seeds as v1.1.0"
+2026-10-22,v1.0.1,compare,code,4,126.75,tok/s aggregate,"T=1.0, top_p 1.0","runs 1-2 of 3 x 2 boots, same prompts and seeds as v1.1.0"
+2026-10-22,v1.0.1,compare,code,8,163.76,tok/s aggregate,"T=1.0, top_p 1.0","runs 1-2 of 3 x 2 boots, same prompts and seeds as v1.1.0"
+2026-10-22,v1.0.1,compare,prose,1,43.88,tok/s aggregate,"T=1.0, top_p 1.0","runs 1-2 of 3 x 2 boots, same prompts and seeds as v1.1.0"
+2026-10-22,v1.0.1,compare,prose,4,85.53,tok/s aggregate,"T=1.0, top_p 1.0","runs 1-2 of 3 x 2 boots, same prompts and seeds as v1.1.0"
+2026-10-22,v1.0.1,compare,prose,8,113.27,tok/s aggregate,"T=1.0, top_p 1.0","runs 1-2 of 3 x 2 boots, same prompts and seeds as v1.1.0"
+2026-10-22,v1.0.1,compare,thinking-75,1,72.85,tok/s aggregate,"T=1.0, top_p 1.0","runs 1-2 of 3 x 2 boots, same prompts and seeds as v1.1.0"
+2026-10-22,v1.0.1,compare,thinking-75,4,114.12,tok/s aggregate,"T=1.0, top_p 1.0","runs 1-2 of 3 x 2 boots, same prompts and seeds as v1.1.0"
+2026-10-22,v1.0.1,compare,thinking-75,8,132.32,tok/s aggregate,"T=1.0, top_p 1.0","runs 1-2 of 3 x 2 boots, same prompts and seeds as v1.1.0"
+2026-10-25,v1.1.0,compare,code,1,94.88,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,compare,code,4,135.31,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,compare,code,8,169.04,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,compare,prose,1,49.98,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,compare,prose,4,96.68,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,compare,prose,8,125.39,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,compare,thinking-75,1,75.23,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,compare,thinking-75,4,119.5,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots
+2026-10-25,v1.1.0,compare,thinking-75,8,139.8,tok/s aggregate,"T=1.0, top_p 1.0",median of 2 runs x 2 boots

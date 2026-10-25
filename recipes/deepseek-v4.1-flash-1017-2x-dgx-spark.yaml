@@ -1,6 +1,9 @@
 # DeepSeek-V4.1-Flash-1017 on two DGX Sparks, TP=2 over both RoCE rails, with a TensorFold-based engine.
 #
 # Weights: LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw @ afc7aa0aab98ee735c0f54e0a122019af1ac08f1.
+# Drafter D1: that checkpoint with its DSpark drafter tensors replaced by my refit (an overlay of one safetensors
+# file and the index), in /srv/ds41/checkpoint-d1. The main model is unchanged and every draft is verified, so
+# replies are the same as with the checkpoint's own drafter. To serve that one, set model: /srv/ds41/checkpoint.
 # Engram: layers 1 and 14 of deepseek-ai/DeepSeek-V4.1-Flash-1017 @ 1bae0e1088993b9b82de08f59de5be5a34e42170,
 # packed per rank with tools/pack_engram.py. docs/setup.md has every step.
 #
@@ -18,11 +21,11 @@
 # (in the image) uses it unless DS41_MASTER is set. On a Spark that address is often Wi-Fi, so pass the head's
 # CX-7 address with `-e DS41_MASTER=<ip>`. NCCL's RoCE v2 GID index is read from sysfs on each rank at start.
 #
-# Image: v1.0.1 (engine commit ee6ff92; v1.0.0 plus notice changes), digest sha256:e87b0eb3919c0dc3e571bd6e0b2800ab24b55353481d7abf0db992ece1f0c399
+# Image: v1.1.0 (engine commit bb619cf), digest sha256:8fc45823278530ae1e86ba35abec5746300af1b007bb07c898df6b270236211b
 description: DeepSeek-V4.1-Flash-1017 EXL3 2.9 bpw, TP=2 over two DGX Sparks, Engram rows from local NVMe
-model: /srv/ds41/checkpoint
+model: /srv/ds41/checkpoint-d1
 runtime: sglang
-container: ghcr.io/ursuciprian/ds41-tensorfold:v1.0.1
+container: ghcr.io/ursuciprian/ds41-tensorfold:v1.1.0
 
 min_nodes: 2
 max_nodes: 2
@@ -101,7 +104,8 @@ env:
   # DSpark: exact drafts (keyed sampler, drafted == serial), lookup drafts on. Depth policy: ratio (draft length
   # that maximizes expected tokens per round time), capped at 5, joint mode 2 for rounds with several requests.
   # ROUND_MS is the wall time of a whole single-request round by verify rows 1..8, measured on my pair with the
-  # v1.0.0 image; rows past the list use the calibrated table.
+  # v1.0.0 image (a table re-measured on the v1.1.0 image was no faster); rows past the list use the calibrated table.
+  # DRAFT_GRAPH_SLOTS 8 captures draft graphs for 5-8 concurrent requests too (the default 4 ran those eagerly).
   TF_DSV41_DSPARK: '1'
   TF_DSV41_DRAFT_DEPTH: '5'
   TF_DSV41_DEPTH: ratio
@@ -110,8 +114,11 @@ env:
   TF_DSV41_SPEC_DRAFT: '1'
   TF_DSV41_CALIB: real
   TF_DSV41_GPU_SAMPLE: '1'                        # sample on the GPU for every sampler, card sampler included
+  TF_DSV41_DRAFT_GRAPH_SLOTS: '8'
+  TF_DSV41_FIRST_SERIAL: '1'                      # a request's first round verifies alone: lower time to first token
   # requests
   TF_DSV41_ADMIT_HOLD_MS: '10'
+  TF_DSV41_INGEST_BATCH: '1'                      # the drafter takes in a round's committed tokens in one batch
   TF_DSV41_THINKING: '1'
   TF_DSV41_DEFAULT_EFFORT: high
   TF_DSV41_GRAMMAR: '1'
@@ -159,7 +166,9 @@ env:
   TF_DSV41_RMS_PAIR: '1'
   TF_DSV41_ROPE_INPLACE: '1'
   TF_DSV41_ROUTER: gemv
-  # prefill: fast kernels with the tuned grouped-GEMM table baked in the image, 2048-row chunks
+  # prefill: fast kernels with the tuned grouped-GEMM table baked in the image, 2048-row chunks. PF_MOE_LEAN plans
+  # the MoE without host syncs, PF_SHARED_SIDE runs the shared expert on a side stream in prefill runs of up to
+  # 64 rows, PF_ATTN_STREAMS the attention projections on parallel streams in runs of up to 128 rows (same bits)
   TF_DSV41_PREFILL: full
   TF_DSV41_PREFILL_KERNELS: fast
   TF_DSV41_GM_TUNE: /opt/tf-cache/gm-tune-1017.json
@@ -176,6 +185,9 @@ env:
   TF_DSV41_PREFILL_GATHER: bf16
   TF_DSV41_PREFILL_ROUTER: gemv
   TF_DSV41_PREFILL_ROWS: '2048'
+  TF_DSV41_PF_MOE_LEAN: '1'
+  TF_DSV41_PF_SHARED_SIDE: '64'
+  TF_DSV41_PF_ATTN_STREAMS: '128'
 
 command: |
   /opt/ds41/sparkrun-serve {model} \

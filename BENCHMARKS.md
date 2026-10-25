@@ -3,6 +3,193 @@
 Every number here comes from my two DGX Sparks. The newest results are first; the older sections follow
 unchanged. Chart data for the README: [docs/data/bench.csv](docs/data/bench.csv).
 
+## 2026-10-25: v1.1.0 release recipe
+
+What changed against v1.0.1, all in the recipe now:
+
+- Engine commit `bb619cf` (from `ee6ff92`), image `ghcr.io/ursuciprian/ds41-tensorfold:v1.1.0`. Every change below
+  gives the same tokens: exactness 32 of 32 at C1 and C8 against the 2026-10-19 recipe on each candidate image.
+  - Less work outside verify in each round: the draft sampling key is drawn earlier, a few small draft kernels are
+    merged, and the Engram warm-up runs later.
+  - `TF_DSV41_FIRST_SERIAL=1`: a request's first round verifies its pending token alone, which lowers the time to
+    first token on short prompts by 10 to 25 ms.
+  - `TF_DSV41_PF_MOE_LEAN=1` plans the prefill MoE without host syncs, and `TF_DSV41_PF_SHARED_SIDE=64` runs the
+    shared expert on a side stream in prefill runs of up to 64 rows.
+  - `TF_DSV41_PF_ATTN_STREAMS=128` runs the attention projections on parallel streams in prefill runs of up to 128
+    rows.
+  - `TF_DSV41_INGEST_BATCH=1` lets the drafter take in a round's committed tokens in one batch, and
+    `TF_DSV41_DRAFT_GRAPH_SLOTS=8` captures draft graphs for 5 to 8 concurrent requests (with the default 4,
+    those draft passes ran without a graph). In an alternating A/B on this image (four boots), the two together
+    gave code C8 +3.1%, prose C4 +1.8% and C8 +3.6%, thinking-75 C8 +1.7%, and 3.9% less time to first token on a
+    short chat prompt; the other cells were within noise.
+- Drafter D1 ([#6](../../issues/6)), below.
+
+Screened on this image and not kept, one boot each against the base boots before and after it: the drafter head
+trim (`TF_DSV41_DRAFT_HEAD=trim:32768`: thinking-75 C1 +2.2% but C4 -1.1%), 64 graph rows with all graphs captured
+at boot (code lower at C1, C4 and C8), a round table measured again on this image (no cell changed beyond noise),
+temperature calibration of the drafter's confidence (six cells lower, code C8 -3.5%), and a small-row dense prefill
+kernel (short-prompt time to first token -2%, but code C4 and 4K prefill lower).
+
+Setup: the same weights, hardware, prompts and scripts as before. Booted with sparkrun under the narrow seccomp
+profile. The booted recipe differs from the file in [recipes/](recipes/) in host paths, the Engram mount point, the
+request log name, the rendezvous address, an extra `SYS_PTRACE` capability, the server default sampler (top_p 1.0
+on the boot, 0.95 in the file), and in how the six new knobs went in (`-e` flags at boot). I compared the running
+container's environment with the file: the engine settings match. Every benchmark and gate request sends its own
+sampler.
+
+### Drafter D1
+
+D1 is the checkpoint's DSpark drafter, refit on the served model's own replies:
+
+- Data: 2.0M tokens of replies from this engine on my pair (prose and long documents, code and structured output,
+  chat, tool calls and agentic turns, and some reasoning), 75% greedy and 25% at the card sampler. The benchmark and
+  gate prompts were kept out of the training prompts by 13-gram match, and 248 sessions were held out.
+- Training: low-rank updates to the drafter's dense matrices (37 matrices) and its norms and heads, with the routed
+  experts frozen. The loss is a cross-entropy over the candidates the engine can pick a draft from, on the first
+  three draft positions, counted only where the earlier positions were accepted.
+- Merge: the update at half strength, merged into the drafter's 6-bit EXL3 layers. Merged, the draft pass costs
+  the same as the original drafter's (3.5 to 4.0 ms for both across the four boots below). Applied at serve time
+  without the merge, the update made the draft pass 4.5 ms and lost 6% on code at C1. Merged at full strength it
+  lost 1.0% and 2.4% on code at C1 in two A/Bs, so I halved it.
+- Output: one overlay file of 165 tensors (477 MB) and an index that points the `mtp.*` tensors at it. The main
+  model's tensors are untouched. [docs/setup.md](docs/setup.md#drafter-d1) has the install step.
+
+Alternating A/B on the v1.1.0 image, A = the checkpoint's own drafter, B = D1, boots in the order A B B A. Aggregate
+tok/s, 512 tokens, median of 2 runs per boot, pooled per arm. Serve = card sampler (T=1.0, top_p 1.0), greedy =
+T=0. The noise floor per cell is the larger of the A-to-A and B-to-B spread, and at least 1%.
+
+| Workload | Sampler | C | Checkpoint drafter | D1 | Change | Noise |
+|---|---|--:|--:|--:|--:|--:|
+| code | serve | 1 | 93.87 | 94.88 | +1.1% | 1.0% |
+| code | serve | 4 | 133.60 | 135.31 | +1.3% | 1.0% |
+| code | serve | 8 | 168.43 | 169.04 | +0.4% | 1.0% |
+| code | greedy | 1 | 91.97 | 92.08 | +0.1% | 1.0% |
+| prose | serve | 1 | 44.77 | 49.98 | +11.6% | 1.0% |
+| prose | serve | 4 | 88.66 | 96.68 | +9.1% | 2.2% |
+| prose | serve | 8 | 117.61 | 125.39 | +6.6% | 4.4% |
+| prose | greedy | 1 | 48.03 | 53.52 | +11.5% | 1.0% |
+| thinking-75 | serve | 1 | 73.41 | 75.23 | +2.5% | 2.1% |
+| thinking-75 | serve | 4 | 117.32 | 119.50 | +1.9% | 1.0% |
+| thinking-75 | serve | 8 | 134.92 | 139.80 | +3.6% | 1.0% |
+| thinking-75 | greedy | 1 | 80.12 | 79.32 | -1.0% | 1.0% |
+
+Thinking-75 at greedy C1 is at the noise floor here, and it was also lower in the two earlier A/Bs of D1 on the
+previous candidate image (-1.2% and -0.8%). I count it as a possible loss of about 1% on that cell. Prefill on
+real text and the short-prompt time to first token did not change between the arms.
+
+### Against v1.0.1
+
+The v1.0.1 tables ran three runs per cell; these ran two. At C1 each run is one prompt, so I compare on the runs
+both versions share: the same first two prompts and the same seeds. v1.0.1: the two 32-row boots of the graph-rows A/B
+below (2026-10-22), runs 1 and 2 of 3. v1.1.0: the two D1 boots above (2026-10-25). Aggregate tok/s, card sampler,
+per boot, then the median over the four runs. The versions ran on different days, not alternated.
+
+| Workload | C | v1.0.1, boot 1 / 2 | v1.1.0, boot 1 / 2 | v1.0.1 | v1.1.0 | Change |
+|---|--:|--:|--:|--:|--:|--:|
+| code | 1 | 92.7 / 93.6 | 94.9 / 94.8 | 93.4 | 94.9 | +1.5% |
+| code | 4 | 128.6 / 126.1 | 135.7 / 135.2 | 126.8 | 135.3 | +6.8% |
+| code | 8 | 163.6 / 164.4 | 169.1 / 169.0 | 163.8 | 169.0 | +3.2% |
+| prose | 1 | 43.8 / 43.9 | 50.0 / 50.0 | 43.9 | 50.0 | +13.9% |
+| prose | 4 | 85.5 / 85.1 | 96.7 / 96.7 | 85.5 | 96.7 | +13.0% |
+| prose | 8 | 113.3 / 112.8 | 125.6 / 125.1 | 113.3 | 125.4 | +10.7% |
+| thinking-75 | 1 | 73.1 / 72.9 | 75.2 / 75.3 | 72.8 | 75.2 | +3.3% |
+| thinking-75 | 4 | 114.7 / 114.1 | 119.7 / 118.8 | 114.1 | 119.5 | +4.7% |
+| thinking-75 | 8 | 133.1 / 130.9 | 139.9 / 139.8 | 132.3 | 139.8 | +5.7% |
+
+Code at C4 varied from 127 to 136 tok/s across the four v1.0.1 boots of the graph-rows A/B, so part of its +6.8%
+can be boot noise. The per-stream median at C8 was 21.8 tok/s on code, 16.6 on prose and 23.9 on thinking-75.
+Median time to first token at C1 went from 0.29 to 0.24 s (code), 0.27 to 0.22 s (prose) and 0.47 to 0.41 s
+(thinking-75). At C4 thinking-75 went the other way, 0.54 to 0.66 s; code (0.58 to 0.54 s) and prose (0.44 to
+0.37 s) went down.
+
+Three runs per cell, the same method as the v1.0.1 tables: one boot of the exact release recipe (2026-10-25, every
+served env key checked against the recipe file), the same prompts and seeds as the v1.0.1 runs on all 117 requests.
+v1.0.1: mean of the two 32-row boots, median of 3 runs each. Aggregate tok/s, card sampler. One boot carries about
+2% boot noise per cell.
+
+| Workload | C | v1.0.1 | v1.1.0 | Change | v1.1.0 runs |
+|---|--:|--:|--:|--:|--:|
+| code | 1 | 88.7 | 92.8 | +4.6% | 92.8 / 95.8 / 81.6 |
+| code | 4 | 127.9 | 136.0 | +6.3% | 136.0 / 135.1 / 136.3 |
+| code | 8 | 163.8 | 168.7 | +3.0% | 166.8 / 169.5 / 168.7 |
+| prose | 1 | 44.2 | 49.4 | +11.6% | 50.7 / 49.4 / 47.9 |
+| prose | 4 | 85.1 | 96.9 | +13.8% | 97.6 / 96.9 / 95.0 |
+| prose | 8 | 111.5 | 124.6 | +11.7% | 124.6 / 127.2 / 122.6 |
+| thinking-75 | 1 | 74.7 | 75.4 | +1.0% | 75.4 / 74.9 / 83.5 |
+| thinking-75 | 4 | 115.9 | 119.6 | +3.2% | 117.2 / 119.6 / 127.5 |
+| thinking-75 | 8 | 133.6 | 141.6 | +5.9% | 141.6 / 136.7 / 147.6 |
+
+The third code prompt at C1 is the slow one (81.6 tok/s here, 77.3 on v1.0.1), which is why the median of three
+(92.8) sits below the two-run figure above (94.9).
+
+### Prefill on real text
+
+Same prompts and script as the v1.0.1 real-text table below (`max_tokens` 1, fresh nonce, one request at a time,
+three prompts per size). Median per boot, then over all six prompts:
+
+| Prompt tokens | Boot 1 / 2, tok/s | Six prompts, tok/s | TTFT | v1.0.1, tok/s |
+|--:|--:|--:|--:|--:|
+| about 4,120 | 1,214 / 1,114 | 1,122 | 3.7 s | 1,131 |
+| about 32,790 | 1,713 / 1,690 | 1,701 | 19.3 s | 1,665 |
+| about 131,090 | 1,842 / 1,842 | 1,842 | 71.2 s | 1,831 |
+
+4K is noisy: its six prompts gave 1,045 to 1,256 tok/s. 32K and 128K are 2.2% and 0.6% above v1.0.1, one boot
+there against two here. Time to first token on a short prompt (one sentence, `max_tokens` 1, median of 10 over two
+boots): 0.316 s on `/v1/chat/completions` (0.338 on v1.0.1) and 0.201 s on `/v1/completions` (0.225).
+
+### Gate
+
+Full release gate on the first D1 boot, card sampler (T=1.0, top_p 1.0, top_k 0) on every request. All lanes passed:
+
+| Lane | Result |
+|---|---|
+| reasoning | thinking on and off both answer 391 to 17*23; reasoning only when on |
+| tool_turn | answered from the tool result, no new call |
+| tool_only_turn | reasoning present, 7,006,652 in the answer, earlier reasoning kept in the prompt |
+| tc45 | calculator call in 3 of 3 tries (bar 1 of 3) |
+| hardmode | agentic tool-use suite at T=1.0: score 91 (bar 88) |
+| fidelity | 20 of 20 identifiers exact at each of six depths, prompts of 15,940 to 247,292 tokens (bar 20 of 20 to 64K, 19 of 20 above) |
+| prefix | 16 of 16 codes exact, 4 concurrent 4-turn chats on a shared prefix, prompts of 9,596 to 9,672 tokens |
+| long_session | 29,026 tokens decoded over 9 turns, no loop (bar 28K) |
+| long_decode | reached the 32,768-token cap without a loop (the gate logs this as a warning) |
+| corruption | 0 corrupted characters in two 1024-token essays and the other probes' text |
+| exactness | token IDs identical to the 2026-10-19 recipe in 32 of 32 sequences at C1 and 32 of 32 at C8 |
+
+Also on that boot: 27 greedy C1 replies (9 categories, 3 each) text-identical to the same set on the v1.0.1 image,
+and two more fidelity runs at 241,157 tokens, both 20 of 20. Lowest MemAvailable 6.0 GiB, during the gate.
+
+The fidelity probe at 241K to 247K tokens has an intermittent miss. Across the 17 runs at that depth since
+2026-10-24 (gates and retests on this release's candidates), 2 had items with no answer: 16 of 20 on the first gate
+of the v1.1.0 engine (checkpoint drafter, without the two knobs above) and 17 of 20 on a retest with the two knobs
+(checkpoint drafter). No run had a wrong answer. The cause is admission, not the model: in each of the two runs the
+server log has exactly as many `admission refused` lines as there were items without an answer. A cold prefill of
+241K to 247K tokens needs about 0.55 GiB above the 4 GiB memory floor, and rank 0 had 4.48 to 4.52 GiB usable after
+heavier probes on the same boot, so the request got HTTP 503 and the probe counted it as no answer. A refused request
+does not fill the prefix cache, so the next one is cold too, which is why the misses came 3 or 4 in a row.
+On a fresh boot of the v1.1.0 recipe with D1, 10 runs of the 8K and 248K rungs (400 requests, 50 of them cold) were
+all exact, with 0 refusals and identical replies across all 10 runs. The floor and the gate are unchanged; the next
+step is to find what holds the extra memory after the heavy probes.
+
+## Earlier releases at a glance
+
+| | 2026-10-18 baseline | 2026-10-19 | 2026-10-21, v1.0.0 |
+|---|--:|--:|--:|
+| Decode C1, code | 74.7 tok/s | 75.3 tok/s | 90.5 tok/s |
+| Decode C1, prose | 41.8 tok/s | 39.3 tok/s | 44.6 tok/s |
+| Decode C1, thinking-75 | 61.3 tok/s | 63.3 tok/s | 74.9 tok/s |
+| Decode aggregate C8, code | 139 tok/s | 144 tok/s | 167 tok/s |
+| Decode aggregate C8, thinking-75 | 106 tok/s | 117 tok/s | 136 tok/s |
+| Prefill C1, 4K / 32K / 128K, repeated text | 614 / 906 / 917 tok/s | 1,405 / 2,421 / 2,394 tok/s | 1,262 / 2,424 / 2,391 tok/s |
+| Prefill C1, 4K / 32K / 128K, real text | | | 1,131 / 1,665 / 1,831 tok/s (v1.0.1, 2026-10-22) |
+| Sampler in the decode rows | T=1.0, top_p 0.95 | T=1.0, top_p 1.0 (card) | T=1.0, top_p 1.0 (card) |
+| DeepSeek's card sampler | crashes both ranks | works (GPU sampler) | works (GPU sampler) |
+| Release gate | quality smoke only | 4 lanes pass | full gate, all lanes pass |
+
+Median of 3 runs per cell. The baseline's decode rows use top_p 0.95, because the card sampler crashed that image.
+At top_p 0.95, 2026-10-21 gives 89.3 tok/s at C1 and 169.8 tok/s aggregate at C8 on code. Prefill at 4K C1 varies
+from boot to boot: on 2026-10-19 two boots of one configuration gave 1,205 and 1,425 tok/s, and the three 4K prompts
+of the 2026-10-21 run gave 1,211, 1,262 and 1,488 tok/s.
+
 ## 2026-10-22: v1.0.1 release recipe
 
 v1.0.1 is the v1.0.0 image with notice changes only (same engine commit `ee6ff92`). The release recipe differs from
