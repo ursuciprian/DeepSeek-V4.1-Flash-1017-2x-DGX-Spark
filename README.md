@@ -56,9 +56,9 @@ sparkrun run deepseek-v4.1-flash-1017-2x-dgx-spark --hosts <head>,<worker> \
   -e DS41_MASTER=<head CX-7 IPv4> --no-follow
 ```
 
-Upgrading from v1.1.0: only the image changes. Upgrading from v1.0.1: build `/srv/ds41/checkpoint-d1` on both
-nodes first ([docs/setup.md](docs/setup.md#drafter-d1)), or set `model:` back to `/srv/ds41/checkpoint` in your copy
-of the recipe.
+Upgrading from v1.1.0: the image changes, and the recipe writes out the new prefix-reuse default. Upgrading from
+v1.0.1: build `/srv/ds41/checkpoint-d1` on both nodes first ([docs/setup.md](docs/setup.md#drafter-d1)), or set
+`model:` back to `/srv/ds41/checkpoint` in your copy of the recipe.
 
 `DS41_MASTER` is the head's address on the CX-7 link. Without it the ranks meet on the head's default-route
 address, which on a Spark is often Wi-Fi. sparkrun pulls the image
@@ -90,8 +90,8 @@ Stop it with `sparkrun stop --all`.
 The recipe is meant for one user or one trusted team. Prefix reuse shares snapshots across requests: a request
 whose system prompt and tools match an earlier one resumes from that request's snapshot, and so does a prompt that
 continues an earlier conversation. Neither is keyed by client, so time to first token can tell one client whether
-another client sent the same long prefix. On a server shared by several tenants, add `TF_DSV41_PREFIX_SHARE: '0'`
-to the recipe's `env` (and `TF_DSV41_SESSIONS: '0'` to turn off the session store too). Both cost the agentic
+another client sent the same long prefix. On a server shared by several tenants, set `TF_DSV41_PREFIX_SHARE` to
+`'0'` in the recipe's `env` (and add `TF_DSV41_SESSIONS: '0'` to turn off the session store too). Both cost the agentic
 speedup and I have not booted either setting. A per-tenant isolation key is tracked in [#13](../../issues/13).
 
 <details>
@@ -132,8 +132,9 @@ speedup and I have not booted either setting. A per-tenant isolation key is trac
 
 ## v1.2.0 against v1.1.0
 
-v1.2.0 changes the engine only (commit `21090db`); the drafter, the weights and every recipe setting stay as in
-v1.1.0. Both changes give the same tokens.
+v1.2.0 changes the engine (commit `21090db`). The drafter, the weights and the v1.1.0 recipe settings stay; the recipe
+adds one line, `TF_DSV41_PREFIX_SHARE: '1024'`, which is the new engine default written out. Both changes give the
+same tokens.
 
 - Shared-prefix snapshots. When a prompt's system part (the system prompt and tool definitions before the first
   user turn) is 1,024 tokens or more and matches a stored entry or a prompt in flight, the engine also saves a
@@ -182,7 +183,7 @@ both boots, so I did not redraw them.
 ## Quality gate
 
 The full release gate passed on the v1.2.0 image with drafter D1 on 2026-10-29, at DeepSeek's card sampler
-(T=1.0, top_p 1.0), with no prefix-reuse setting in the environment (the default under test).
+(T=1.0, top_p 1.0), with no prefix-reuse line in the environment, so the engine ran its default of 1024.
 
 | Check | Result |
 |---|---|
@@ -242,8 +243,10 @@ and its prefill uses real text, so the bars would not compare; v1.2.0 is left ou
 
 ## Status
 
-- Recipe: the v1.1.0 settings with the v1.2.0 image, in [recipes/](recipes/). The v1.2.0 boots used the same
-  environment as my v1.1.0 boots, with no prefix-reuse setting, and the engine settings match this file. The file
+- Recipe: the v1.1.0 settings with the v1.2.0 image and `TF_DSV41_PREFIX_SHARE: '1024'` written out, in
+  [recipes/](recipes/). The v1.2.0 boots used the same environment as my v1.1.0 boots without that line, so they
+  ran its default, which is the same value (1024 when the tokenizer's role tokens are known, as they are for this
+  checkpoint). The other engine settings match this file. The file
   differs from the booted one in host paths, container mount points, the request log name, how the rendezvous
   address is passed, an extra `SYS_PTRACE` capability for debugging on my boots and the server default top_p (1.0
   on my boots, 0.95 here).

@@ -6,7 +6,8 @@ unchanged. Chart data for the README: [docs/data/bench.csv](docs/data/bench.csv)
 ## 2026-10-28: v1.2.0 release recipe
 
 What changed against v1.1.0: the engine only, commit `21090db` (from `bb619cf`), image
-`ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0`. Drafter D1, the weights and every recipe setting are the same.
+`ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0`. Drafter D1, the weights and the v1.1.0 recipe settings are the same;
+the recipe adds `TF_DSV41_PREFIX_SHARE: '1024'`, the new default written out.
 
 - Shared-prefix snapshots (`TF_DSV41_PREFIX_SHARE`, default 1024 when the tokenizer's role tokens are known, `0`
   turns it off). When a prompt's system part (the tokens before its first user or assistant turn) is at least that
