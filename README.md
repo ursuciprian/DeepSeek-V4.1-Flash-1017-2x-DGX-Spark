@@ -266,7 +266,7 @@ and its prefill uses real text, so the bars would not compare; v1.2.0 is left ou
   on my boots, 0.95 here).
 - Gate: the full release gate passed on the v1.2.0 image with drafter D1 on 2026-10-29, with exactness 32 of 32
   at C1 and at C8 and the lowest MemAvailable at 5.9 GiB (5.8 during two extra fidelity runs after it).
-- Image: `ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0`, digest `DIGEST_PLACEHOLDER`.
+- Image: `ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0`, digest `sha256:471ae5c8eb7e7d25806fa6acf9111c30291537e5d96330cc5b36fca305e54338`.
 - In this release: shared-prefix snapshots and the admission reclaim ([#11](../../issues/11), still open).
 - In progress, tracked as issues; each change has to pass the gate before it lands in the recipe:
   - [#13](../../issues/13) a per-tenant isolation key for prefix reuse
