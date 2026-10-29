@@ -3,15 +3,15 @@
 <p align="center">A sparkrun recipe for DeepSeek-V4.1-Flash-1017 (EXL3 2.9 bpw, Engram from local NVMe) at TP=2 over CX-7.<br>TensorFold-based engine, exact DSpark drafts with a refit drafter, OpenAI-compatible endpoint.</p>
 
 <table align="center">
-  <tr>
-    <td align="center"><h2>-6% to -25%</h2><b>agentic wall time, C8</b><br><sub>24 prompts of 8K / 16K / 32K tokens, vs v1.1.0</sub></td>
-    <td align="center"><h2>75 → 50 s</h2><b>median TTFT, agentic 16K, C8</b><br><sub>-24% to -33% across the 8K, 16K, 32K buckets</sub></td>
-    <td align="center"><h2>95 / 170 tok/s</h2><b>decode C1 / aggregate C8</b><br><sub>code, T=1.0, top_p 1.0; v1.1.0: 95 / 169</sub></td>
-    <td align="center"><h2>32 of 32</h2><b>token-identical</b><br><sub>at C1 and C8; full gate passed</sub></td>
-  </tr>
+<tr> <td align="center"><h2>-6% to -25%</h2><b>agentic wall time, C8</b><br><sub>24 prompts of 8K / 16K / 32K tokens,
+vs v1.1.0, two boot pairs</sub></td> <td align="center"><h2>-24% to -33%</h2><b>median TTFT, agentic
+C8</b><br><sub>16K: 75 → 50 s and 67 → 49 s</sub></td> <td align="center"><h2>95 / 170 tok/s</h2><b>decode C1 /
+aggregate C8</b><br><sub>code, T=1.0, top_p 1.0; v1.1.0: 95 / 169</sub></td> <td align="center"><h2>144 of
+144</h2><b>agentic replies identical</b><br><sub>to v1.1.0; exactness 32 of 32 at C1 and C8; full gate
+passed</sub></td> </tr>
 </table>
 
-<p align="center"><sub>262K context, 8 sequences in parallel, FP8 KV, DSpark drafts with drafter D1, v1.2.0 against v1.1.0 in alternating boots on my pair, 2026-10-28</sub></p>
+<p align="center"><sub>262K context, 8 sequences in parallel, FP8 KV, DSpark drafts with drafter D1, v1.2.0 against v1.1.0 in alternating boots on my pair, 2026-10-28 to 10-29</sub></p>
 
 <details>
 <summary><sub>Measurement details</sub></summary>
@@ -21,14 +21,18 @@
 | Agentic C8 wall, 8K prompts | 208.8 / 184.2 s | 178.2 / 173.3 s (-14.7% / -5.9%) | 24 agentic prompts of 7,958 to 8,579 tokens, 8 at a time, up to 1,024 new tokens | 75% greedy, 25% T=1.0 top_p 1.0 | one run per boot, boot pair 1 / pair 2 |
 | Agentic C8 wall, 16K prompts | 333.0 / 328.7 s | 249.5 / 248.6 s (-25.1% / -24.4%) | 24 prompts of 15,510 to 17,065 tokens | same | same |
 | Agentic C8 wall, 32K prompts | 593.2 / 588.0 s | 519.2 / 517.4 s (-12.5% / -12.0%) | 24 prompts of 28,820 to 33,108 tokens | same | same |
-| Median TTFT, 16K prompts | 75.1 / 67.1 s | 50.1 / 48.5 s | same | same | median of 24 requests per boot |
+| Median TTFT, 8K / 16K / 32K prompts | 44.1 / 75.1 / 164.4 s, 36.1 / 67.1 / 139.8 s | 31.6 / 50.1 / 119.8 s, 25.6 / 48.5 / 106.8 s | same | same | median of 24 requests per boot, pair 1, pair 2 |
 | Decode C1 / C8, code | 95.5 / 169.2 tok/s | 95.5 / 170.4 tok/s | 8 short code prompts, 512 tokens | T=1.0, top_p 1.0 | A/B, pooled per arm, every cell within noise |
 
 The two versions ran in alternating boots (v1.1.0, v1.2.0, v1.2.0, v1.1.0) on 2026-10-28 and 2026-10-29, the same
-prompts in the same order on every boot. The replies were text-identical between the versions on all 144 agentic
-requests. Image `ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0` (engine commit `21090db`) with drafter D1 and the
-settings in [recipes/](recipes/). The decode tile is the median of 2 runs on each of the two boots per version; the
-v1.1.0 release figure on three prompts was 92.8 tok/s at C1. No decode cell changed beyond noise.
+prompts in the same order on every boot. The buckets ran 8K, then 16K, then 32K on each boot, so on v1.2.0 the 16K
+and 32K buckets started with the system-part snapshots the 8K bucket had left: all 24 of their requests resumed from
+a snapshot, against 10 and 11 of 24 in the 8K bucket. A 16K or 32K bucket on a fresh boot would gain less. Wall time
+is the steadier measure; medians of 24 requests move more from run to run. The replies were text-identical between
+the versions on all 144 agentic requests. Image `ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0` (engine commit
+`21090db`) with drafter D1 and the settings in [recipes/](recipes/). The decode tile is the median of 2 runs on each
+of the two boots per version; the v1.1.0 release figure on three prompts was 92.8 tok/s at C1. No decode cell changed
+beyond noise.
 
 Method, prompts and the full tables: [BENCHMARKS.md](BENCHMARKS.md#2026-10-28-v120-release-recipe). Chart data:
 [docs/data/bench.csv](docs/data/bench.csv).
@@ -85,15 +89,6 @@ benchmarks). Turn it off per request with `"chat_template_kwargs": {"thinking": 
 The server binds 0.0.0.0 with no API key. Keep it on a trusted network or put an authenticating proxy in front.
 Stop it with `sparkrun stop --all`.
 
-### Shared servers
-
-The recipe is meant for one user or one trusted team. Prefix reuse shares snapshots across requests: a request
-whose system prompt and tools match an earlier one resumes from that request's snapshot, and so does a prompt that
-continues an earlier conversation. Neither is keyed by client, so time to first token can tell one client whether
-another client sent the same long prefix. On a server shared by several tenants, set `TF_DSV41_PREFIX_SHARE` to
-`'0'` in the recipe's `env` (and add `TF_DSV41_SESSIONS: '0'` to turn off the session store too). Both cost the agentic
-speedup and I have not booted either setting. A per-tenant isolation key is tracked in [#13](../../issues/13).
-
 <details>
 <summary>Paths, interfaces and other settings in the recipe</summary>
 
@@ -130,18 +125,31 @@ speedup and I have not booted either setting. A per-tenant isolation key is trac
 
 </details>
 
+### Shared servers
+
+The recipe is meant for one user or one trusted team. Snapshots are shared across requests: a request whose system
+prompt and tools match an earlier one resumes from a snapshot at the end of that part (new in v1.2.0), and a prompt
+that continues an earlier conversation resumes from that conversation's snapshot (the session store, in every
+release). Neither is keyed by client, so time to first token can tell one client whether another client sent the
+same long prefix. On a server shared by several tenants, add `TF_DSV41_SESSIONS: '0'` to the recipe's `env`: it
+turns off the session store and with it both kinds of reuse. Setting `TF_DSV41_PREFIX_SHARE` to `'0'` turns off
+only the system-part snapshots. Two smaller shared caches stay on either way, the Engram row cache and the compiled
+grammar cache, so timing can still depend a little on what other clients sent. Turning the store off costs the
+agentic speedup and I have not booted that setting. A per-tenant isolation key is tracked in [#13](../../issues/13).
+
 ## v1.2.0 against v1.1.0
 
 v1.2.0 changes the engine (commit `21090db`). The drafter, the weights and the v1.1.0 recipe settings stay; the recipe
 adds one line, `TF_DSV41_PREFIX_SHARE: '1024'`, which is the new engine default written out. Both changes give the
-same tokens.
+same tokens: the agentic replies, which resume from snapshots, matched v1.1.0 on 144 of 144 requests, and so did the
+gate's shared-prefix lane and the exactness lane.
 
-- Shared-prefix snapshots. When a prompt's system part (the system prompt and tool definitions before the first
-  user turn) is 1,024 tokens or more and matches a stored entry or a prompt in flight, the engine also saves a
-  snapshot at the end of that part. The next request over the same system prompt and tools resumes there instead
-  of prefilling it again. Agent clients send the same long system prompt with every request, so under concurrency
-  this cuts prefill work and queueing. `TF_DSV41_PREFIX_SHARE` sets the minimum length; the default is 1024 and
-  `0` turns it off (see [Shared servers](#shared-servers)).
+- Shared-prefix snapshots. When a prompt's system part (the system prompt and tool definitions before the first user,
+  assistant or reminder token) is 1,024 tokens or more and matches a stored entry or a prompt in flight, the engine
+  also saves a snapshot at the end of that part. The next request over the same system prompt and tools resumes there
+  instead of prefilling it again. Agent clients send the same long system prompt with every request, so under
+  concurrency this cuts prefill work and queueing. `TF_DSV41_PREFIX_SHARE` sets the minimum length; the default is
+  1024 and `0` turns it off (see [Shared servers](#shared-servers)).
 - Admission reclaim. Before the engine refuses a request for lack of memory (HTTP 503), both ranks drop the grammar
   compiler caches, collect garbage and return freed heap to the system, then check again. Refusal messages now include
   both ranks' usable memory and the price of the request ([#11](../../issues/11)).
@@ -154,12 +162,15 @@ same tokens.
 
 <sub>24 agentic prompts per bucket (multi-turn coding-agent and tool sessions), 8 at a time, up to 1,024 new
 tokens, 75% greedy and 25% at T=1.0 top_p 1.0. Boots alternated v1.1.0, v1.2.0, v1.2.0, v1.1.0; each v1.2.0 boot is
-compared with the v1.1.0 boot next to it. One run per bucket per boot. Replies text-identical on all 144 requests.</sub>
+compared with the v1.1.0 boot next to it. One run per bucket per boot. The buckets ran in this order on each boot,
+so the 16K and 32K buckets on v1.2.0 began with the 8K bucket's system-part snapshots stored; on a fresh boot they
+would gain less. Replies text-identical on all 144 requests.</sub>
 
-Short-prompt decode, prefill on real text and time to first token on a short prompt did not change beyond noise
-when pooled over both boots; on one of the two boots the chat time to first token was 3.5% higher (0.317 against
-0.304 to 0.308 s). Tables in [BENCHMARKS.md](BENCHMARKS.md#2026-10-28-v120-release-recipe). The comparison of v1.1.0 with v1.0.1 is
-in [BENCHMARKS.md](BENCHMARKS.md#against-v101).
+Short-prompt decode, prefill on real text and time to first token on a short prompt were not worse beyond noise when
+pooled over both boots, and time to first token on `/v1/completions` was 2.3% lower (beyond the 1% floor). On one of
+the two boots the chat time to first token was 3.5% higher (0.317 against 0.304 to 0.308 s). Tables in
+[BENCHMARKS.md](BENCHMARKS.md#2026-10-28-v120-release-recipe). The comparison of v1.1.0 with v1.0.1 is in
+[BENCHMARKS.md](BENCHMARKS.md#against-v101).
 
 ## Performance
 
@@ -189,7 +200,7 @@ The full release gate passed on the v1.2.0 image with drafter D1 on 2026-10-29, 
 |---|---|
 | Reasoning on and off, tool turn, tool-result-only turn, forced tool call | pass (forced call 3 of 3) |
 | Hardmode agentic tool-use suite, T=1.0 | 91 (bar 88), as v1.1.0 |
-| Identifier fidelity, six depths, prompts of 15,940 to 247,292 tokens | 20 of 20 exact at every depth, and 20 of 20 in two more runs on the same boot |
+| Identifier fidelity, six depths, prompts of 15,940 to 247,292 tokens | 20 of 20 exact at every depth; two more runs at 16,072 and 241,157 tokens on the same boot, 20 of 20 at both |
 | Shared prefix, 4 concurrent chats | 16 of 16 exact |
 | Long session, long decode to the 32,768-token cap | no loop |
 | Corruption | 0 corrupted characters |
@@ -198,17 +209,18 @@ The full release gate passed on the v1.2.0 image with drafter D1 on 2026-10-29, 
 | Agentic replies against v1.1.0, 144 requests over two boot pairs | text-identical, 144 of 144 |
 | Fast prefill vs exact kernels, logits over 16,376 teacher-forced positions (2026-10-19) | top-1 agreement 0.9982 (bar 0.995), mean KL 7.8e-4 (bar 1e-3) |
 
-Lowest MemAvailable on that boot, from boot to the end of the gate and the two extra 248K runs: 5.8 GiB on rank 0,
-7.3 GiB on rank 1.
+Lowest MemAvailable on that boot: 5.9 GiB on rank 0 to the end of the gate, 5.8 GiB during the two extra fidelity
+runs; 7.3 GiB on rank 1.
 
 At 241K to 247K tokens the fidelity probe has had an intermittent miss on v1.1.0, and it is a memory limit, not a
 wrong answer: in 2 of 17 runs at that depth, 3 or 4 items got no answer because the server refused exactly that many
 requests (HTTP 503) after heavier probes on the same boot. No item came back wrong. On v1.2.0 the engine reclaims
 host caches on both ranks before it refuses. On a diagnostic boot with the floor raised so that a cold 248K prompt
 could not fit, the reclaim ran 54 times and freed 0 to 0.24 GiB on rank 0 each time, and 3 of the 54 requests were
-then admitted. It makes a refusal less likely; it does not remove the limit. The v1.2.0 gate boot logged no refusal and no reclaim.
-I am tracking it in [#11](../../issues/11). Details per lane: [BENCHMARKS.md](BENCHMARKS.md#gate). The gate is in
-[gate/](gate/) and talks to the server over the OpenAI API only.
+then admitted. It makes a refusal less likely; it does not remove the limit. The v1.2.0 gate boot logged no refusal
+and no reclaim. I am tracking it in [#11](../../issues/11). Details per lane: [BENCHMARKS.md](BENCHMARKS.md#gate)
+(v1.2.0) and [BENCHMARKS.md](BENCHMARKS.md#gate-1) (v1.1.0). The gate is in [gate/](gate/) and talks to the server
+over the OpenAI API only.
 
 ## History
 
@@ -246,12 +258,14 @@ and its prefill uses real text, so the bars would not compare; v1.2.0 is left ou
 - Recipe: the v1.1.0 settings with the v1.2.0 image and `TF_DSV41_PREFIX_SHARE: '1024'` written out, in
   [recipes/](recipes/). The v1.2.0 boots used the same environment as my v1.1.0 boots without that line, so they
   ran its default, which is the same value (1024 when the tokenizer's role tokens are known, as they are for this
-  checkpoint). The other engine settings match this file. The file
+  checkpoint). I have not booted the explicit line itself; by the code it behaves the same, except that it stops the
+  boot with an error if the model folder's tokenizer.json lacks the role tokens, where the default turns the feature
+  off. The other engine settings match this file. The file
   differs from the booted one in host paths, container mount points, the request log name, how the rendezvous
   address is passed, an extra `SYS_PTRACE` capability for debugging on my boots and the server default top_p (1.0
   on my boots, 0.95 here).
 - Gate: the full release gate passed on the v1.2.0 image with drafter D1 on 2026-10-29, with exactness 32 of 32
-  at C1 and at C8 and the lowest MemAvailable at 5.8 GiB.
+  at C1 and at C8 and the lowest MemAvailable at 5.9 GiB (5.8 during two extra fidelity runs after it).
 - Image: `ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0`, digest `DIGEST_PLACEHOLDER`.
 - In this release: shared-prefix snapshots and the admission reclaim ([#11](../../issues/11), still open).
 - In progress, tracked as issues; each change has to pass the gate before it lands in the recipe:

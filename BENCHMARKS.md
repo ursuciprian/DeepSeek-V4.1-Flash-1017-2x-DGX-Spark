@@ -10,33 +10,35 @@ What changed against v1.1.0: the engine only, commit `21090db` (from `bb619cf`),
 the recipe adds `TF_DSV41_PREFIX_SHARE: '1024'`, the new default written out.
 
 - Shared-prefix snapshots (`TF_DSV41_PREFIX_SHARE`, default 1024 when the tokenizer's role tokens are known, `0`
-  turns it off). When a prompt's system part (the tokens before its first user or assistant turn) is at least that
-  many tokens and equals a stored entry's or a prompt in flight's, the engine also saves a snapshot at the end of
-  that part, on the 16-token grid. Later prompts over the same system prompt and tools resume there. The snapshot at
-  the replay point is kept as before. In my agentic set, 18 to 20 of the 24 prompts in a bucket share a system
-  part of about 1.4K or 5.9K tokens with an earlier prompt.
+  turns it off). When a prompt's system part (the tokens before its first user, assistant or reminder token) is at
+  least that many tokens and equals a stored entry's or a prompt in flight's, the engine also saves a snapshot at the
+  end of that part, on the 16-token grid. Later prompts over the same system prompt and tools resume there. The
+  snapshot at the replay point is kept as before. In my agentic set, 18 to 20 of the 24 prompts in a bucket share a
+  system part of about 1.4K or 5.9K tokens with an earlier prompt.
 - Admission reclaim (`TF_DSV41_ADMIT_RECLAIM`, default 1, [#11](../../issues/11)). Before a memory refusal (HTTP
   503), both ranks drop the grammar compiler caches, run garbage collection, return freed heap to the system and
   release the pinned host cache, then the floor is checked again. Refusal messages include both ranks' usable memory,
   the price and the rows it was taken at.
 
-Shared servers: snapshots are not keyed by client, so time to first token can show one client that another sent
-the same long prefix. The recipe is meant for one user or one trusted team; on a shared multi-tenant server set
-`TF_DSV41_PREFIX_SHARE=0` (and `TF_DSV41_SESSIONS=0` for the session store). Per-tenant keys: [#13](../../issues/13).
+Shared servers: neither these snapshots nor the session store (every release) is keyed by client, so time to first
+token can show one client that another sent the same long prefix. The recipe is meant for one user or one trusted
+team. On a shared multi-tenant server set `TF_DSV41_SESSIONS=0`, which turns off the store and both kinds of reuse;
+`TF_DSV41_PREFIX_SHARE=0` alone turns off only the system-part snapshots. The Engram row cache and the compiled
+grammar cache stay shared either way. Per-tenant keys: [#13](../../issues/13).
 
-Setup: alternating boots on 2026-10-28 and 2026-10-29, A = v1.1.0 (`bb619cf`), B = v1.2.0 (`21090db`), in the order
-A B B A, model `checkpoint-d1` on both. B boots carried no prefix-reuse setting, so they ran the defaults under test.
-Both arms used the v1.1.0 release environment. Every arm ran the decode bench, prefill on real text and the
-agentic buckets; the first B boot also ran exactness, the 27 greedy C1 replies, the full gate and two more 248K
-fidelity runs. Before the boots, the image's tests passed (118), and a mutant of the
-snapshot code (no snapshot cone at the mark) failed its test as required.
+Setup: alternating boots on 2026-10-28 and 2026-10-29, A = v1.1.0 (`bb619cf`), B = v1.2.0 (`21090db`), in the order A
+B B A, model `checkpoint-d1` on both. B boots had no prefix-reuse setting, so they ran the default under test. Both
+arms used the v1.1.0 release environment. Every arm ran the decode bench, prefill on real text and the agentic
+buckets; the first B boot also ran exactness, the 27 greedy C1 replies, the full gate and two more fidelity runs at
+16,072 and 241,157 tokens. Before the boots, the image's tests passed (118), and a mutant of the snapshot code (no
+snapshot cone at the mark) failed its test as required.
 
 ### Agentic C8
 
-My agentic prompt set: multi-turn coding-agent, tool and infrastructure sessions. Three buckets by prompt length,
-24 prompts each, sent 8 at a time, each prompt once per boot, up to 1,024 new tokens, 75% greedy and 25% at the card
+My agentic prompt set: multi-turn coding-agent, tool and infrastructure sessions. Three buckets by prompt length, 24
+prompts each, sent 8 at a time, each prompt once per boot, up to 1,024 new tokens, 75% greedy and 25% at the card
 sampler (T=1.0, top_p 1.0). Pair 1 = boots A1 and B1, pair 2 = B2 and A2. Wall time from the first request to the
-last reply.
+last reply. The buckets ran a8k, a16k, a32k in that order on every boot, after the decode bench and the prefill runs.
 
 | Bucket | Prompt tokens | Pair | Wall A → B | Change | Median TTFT A → B | Prompt tok/s A → B | Cached tokens on B |
 |---|--:|--:|--:|--:|--:|--:|--:|
@@ -49,8 +51,14 @@ last reply.
 
 Replies text-identical between A and B on all 24 requests of every bucket in both pairs (144 of 144). Cached tokens
 on A: 0 in every bucket. Admission waits 65 / 60 on the A boots and 57 / 59 on the B boots, 0 refusals, 0 reclaims.
-One run per bucket per boot, so the spread between the pairs (a8k -14.7% and -5.9%) is the best estimate of the
-noise I have here.
+One run per bucket per boot, so the spread between the pairs (a8k -14.7% and -5.9%) is the only noise estimate I have
+here.
+
+Bucket order matters for B. The first 8 requests of a8k run together before any snapshot of their system part exists,
+and a8k resumed from a snapshot on 10 and 11 of its 24 requests (B1, B2). a16k and a32k came after it on the same
+boot, with a8k's system-part snapshots stored, and resumed on 24 of 24, the first requests included. So the a16k and
+a32k gains include snapshots from an earlier bucket; on a fresh boot those buckets would start like a8k and gain
+less. Median TTFT over 24 requests also moves more between runs than wall time does.
 
 ### Decode
 
@@ -73,8 +81,8 @@ A-to-A and B-to-B spread, and at least 1%.
 | thinking-75 | serve | 8 | 140.19 | 141.87 | +1.19% | 1.30% |
 | thinking-75 | greedy | 1 | 80.03 | 80.26 | +0.29% | 1.00% |
 
-Every cell is within noise. The bench prompts are short and have no shared system part, so the snapshot code does
-not run on them.
+Every cell is within noise. The bench prompts are short and have no shared system part, so the snapshot code does not
+run on them.
 
 ### Prefill on real text and short-prompt TTFT
 
@@ -89,12 +97,12 @@ The first A/B ran 3 prompts per cell per boot. Each B boot against both A boots:
 | TTFT completions, s | 0.199 / 0.196 | 0.197 | 0.197 | 1.52% |
 
 The 4K cell was better beyond noise on B1 and worse beyond noise on B2. Neither change runs code on this path (no
-shared system part, no refusal), and per-request 4K values ranged from 950 to 1,262 tok/s inside single boots of both
-images, so 3 samples a boot could not settle it. I did not count this run either way. I wrote a rule for a retest
-before its first boot: four fresh boots (A B B A), 10 samples per cell per boot; keep v1.2.0 only if no cell is worse
-beyond noise when pooled (B1 + B2 against A1 + A2, 20 samples each, noise = the A1-to-A2 spread, at least 1%) and
-4K is not worse beyond noise on either B boot alone. The retest replaces the first run's prefill verdict, whatever
-it showed:
+shared system part, no refusal), and per-request 4K values ranged from 950 to 1,120 tok/s inside one A boot and from
+984 to 1,196 inside one B boot, so 3 samples a boot could not settle it. I did not count this run either way. I wrote
+a rule for a retest before its first boot: four fresh boots (A B B A), 10 samples per cell per boot; keep v1.2.0 only
+if no cell is worse beyond noise when pooled (B1 + B2 against A1 + A2, 20 samples each, noise = the A1-to-A2 spread,
+at least 1%) and 4K is not worse beyond noise on either B boot alone. The retest replaces the first run's prefill
+verdict, whatever it showed:
 
 | Cell | A, pooled (A1 / A2) | B, pooled (B1 / B2) | Change | Noise | Verdict |
 |---|--:|--:|--:|--:|---|
@@ -104,21 +112,21 @@ it showed:
 | TTFT chat, s | 0.307 (0.308 / 0.304) | 0.309 (0.317 / 0.308) | +0.65% | 1.14% | noise |
 | TTFT completions, s | 0.199 (0.199 / 0.199) | 0.195 (0.194 / 0.195) | -2.26% | 1.00% | better |
 
-4K on each B boot alone: B1 -4.49%, B2 +4.05% against the A boots, noise 9.63%, both within noise. The retest met
-the rule. Two single-boot cells sit outside the rule's criteria, and I list them here: chat TTFT
-on B1 was 3.51% higher (0.317 s, noise 1.14%), and 32K on B2 was 9.87% higher, where 5 of B2's 10 samples ran at
-about 2,055 tok/s. The 32K and 128K cells switch between two levels from boot to boot with the free memory left for
-the 2,048-row prefill rounds, on both images.
+4K on each B boot alone: B1 -4.49%, B2 +4.05% against the A boots, noise 9.63%, both within noise. The retest met the
+rule. Two single-boot cells sit outside the rule's criteria, and I list them here: chat TTFT on B1 was 3.51% higher
+(0.317 s, noise 1.14%), and 32K on B2 was 9.87% higher, where 5 of B2's 10 samples ran at about 2,055 tok/s. The 32K
+and 128K cells switch between two levels from boot to boot on both images; the logs tie this to the free memory left
+for 2,048-row prefill rounds (not tested directly).
 
 ### Gate
 
 Full release gate on the first v1.2.0 boot, card sampler (T=1.0, top_p 1.0, top_k 0) on every request. All lanes
 passed: reasoning, tool_turn, tool_only_turn, tc45 (3 of 3), hardmode 91 (bar 88), fidelity 20 of 20 at each of six
-depths (16,072 to 247,292 tokens), prefix 16 of 16, long_session, long_decode, corruption 0. Exactness: token IDs
+depths (15,940 to 247,292 tokens), prefix 16 of 16, long_session, long_decode, corruption 0. Exactness: token IDs
 identical to the 2026-10-19 recipe in 32 of 32 sequences at C1 and 32 of 32 at C8. 27 greedy C1 replies
-text-identical to the v1.0.1 image. Two more fidelity runs on the same boot after the gate: 20 of 20 at every depth
-in both. No admission refusal and no reclaim on that boot. Lowest MemAvailable 5.8 GiB on rank 0 and 7.3 GiB on
-rank 1.
+text-identical to the v1.0.1 image. Two more fidelity runs on the same boot after the gate, at 16,072 and 241,157
+tokens: 20 of 20 at both depths in both runs. No admission refusal and no reclaim on that boot. Lowest MemAvailable
+on rank 0 5.9 GiB to the end of the gate and 5.8 GiB during the two extra runs; rank 1 7.3 GiB.
 
 The reclaim on a diagnostic boot (v1.2.0's reclaim on v1.1.0, the hard floor raised from 4 to 5 GiB so that a cold
 248K prompt could not fit after the hardmode suite): 54 reclaims, 51 refusals. Rank 0 freed 0.00 / 0.10 / 0.24 GiB

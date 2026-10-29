@@ -120,9 +120,10 @@ env:
   TF_DSV41_ADMIT_HOLD_MS: '10'
   TF_DSV41_INGEST_BATCH: '1'                      # the drafter takes in a round's committed tokens in one batch
   # Prefix reuse (v1.2.0): a snapshot at the end of a system prompt plus tools of 1,024 tokens or more, resumed by
-  # later requests with the same system part. Shared across clients, so time to first token can show one client that
-  # another sent the same long prefix. For one user or one trusted team only; on shared servers set '0' (and add
-  # TF_DSV41_SESSIONS: '0' for the session store). Per-tenant keys: issue #13.
+  # later requests with the same system part; the session store (all releases) does the same for a prompt that
+  # continues an earlier one. Neither is keyed by client, so time to first token can show one client that another sent
+  # the same long prefix. For one user or one trusted team only. On a shared server add TF_DSV41_SESSIONS: '0', which
+  # turns off both; '0' here turns off only the system-part snapshots. README "Shared servers", issue #13.
   TF_DSV41_PREFIX_SHARE: '1024'
   TF_DSV41_THINKING: '1'
   TF_DSV41_DEFAULT_EFFORT: high
