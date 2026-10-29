@@ -21,11 +21,11 @@
 # (in the image) uses it unless DS41_MASTER is set. On a Spark that address is often Wi-Fi, so pass the head's
 # CX-7 address with `-e DS41_MASTER=<ip>`. NCCL's RoCE v2 GID index is read from sysfs on each rank at start.
 #
-# Image: v1.1.0 (engine commit bb619cf), digest sha256:8fc45823278530ae1e86ba35abec5746300af1b007bb07c898df6b270236211b
+# Image: v1.2.0 (engine commit 21090db), digest DIGEST_PLACEHOLDER
 description: DeepSeek-V4.1-Flash-1017 EXL3 2.9 bpw, TP=2 over two DGX Sparks, Engram rows from local NVMe
 model: /srv/ds41/checkpoint-d1
 runtime: sglang
-container: ghcr.io/ursuciprian/ds41-tensorfold:v1.1.0
+container: ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0
 
 min_nodes: 2
 max_nodes: 2
@@ -119,6 +119,11 @@ env:
   # requests
   TF_DSV41_ADMIT_HOLD_MS: '10'
   TF_DSV41_INGEST_BATCH: '1'                      # the drafter takes in a round's committed tokens in one batch
+  # Prefix reuse: from v1.2.0 the engine keeps a snapshot at the end of a system prompt plus tools of 1,024 tokens or
+  # more (TF_DSV41_PREFIX_SHARE, default 1024, not set here) and later requests with the same system part resume
+  # there. Snapshots are shared across clients, so time to first token can show one client that another sent the
+  # same long prefix. Fine for one user or one trusted team. On a server shared by several tenants add
+  # TF_DSV41_PREFIX_SHARE: '0' (and TF_DSV41_SESSIONS: '0' for the session store); README, "Shared servers".
   TF_DSV41_THINKING: '1'
   TF_DSV41_DEFAULT_EFFORT: high
   TF_DSV41_GRAMMAR: '1'
