@@ -3,12 +3,12 @@
 <p align="center">A sparkrun recipe for DeepSeek-V4.1-Flash-1017 (EXL3 2.9 bpw, Engram from local NVMe) at TP=2 over CX-7.<br>TensorFold-based engine, exact DSpark drafts with a refit drafter, OpenAI-compatible endpoint.</p>
 
 <table align="center">
-<tr> <td align="center"><h2>-6% to -25%</h2><b>agentic wall time, C8</b><br><sub>24 prompts of 8K / 16K / 32K tokens,
-vs v1.1.0, two boot pairs</sub></td> <td align="center"><h2>-24% to -33%</h2><b>median TTFT, agentic
-C8</b><br><sub>16K: 75 → 50 s and 67 → 49 s</sub></td> <td align="center"><h2>95 / 170 tok/s</h2><b>decode C1 /
-aggregate C8</b><br><sub>code, T=1.0, top_p 1.0; v1.1.0: 95 / 169</sub></td> <td align="center"><h2>144 of
-144</h2><b>agentic replies identical</b><br><sub>to v1.1.0; exactness 32 of 32 at C1 and C8; full gate
-passed</sub></td> </tr>
+  <tr>
+    <td align="center"><h2>-6% to -25%</h2><b>agentic wall time, C8</b><br><sub>24 prompts of 8K / 16K / 32K tokens, vs v1.1.0, two boot pairs</sub></td>
+    <td align="center"><h2>-24% to -33%</h2><b>median TTFT, agentic C8</b><br><sub>16K: 75 → 50 s and 67 → 49 s</sub></td>
+    <td align="center"><h2>95 / 170 tok/s</h2><b>decode C1 / aggregate C8</b><br><sub>code, T=1.0, top_p 1.0; v1.1.0: 95 / 169</sub></td>
+    <td align="center"><h2>144 of 144</h2><b>agentic replies identical</b><br><sub>to v1.1.0; exactness 32 of 32 at C1 and C8; full gate passed</sub></td>
+  </tr>
 </table>
 
 <p align="center"><sub>262K context, 8 sequences in parallel, FP8 KV, DSpark drafts with drafter D1, v1.2.0 against v1.1.0 in alternating boots on my pair, 2026-10-28 to 10-29</sub></p>
@@ -141,8 +141,9 @@ agentic speedup and I have not booted that setting. A per-tenant isolation key i
 
 v1.2.0 changes the engine (commit `21090db`). The drafter, the weights and the v1.1.0 recipe settings stay; the recipe
 adds one line, `TF_DSV41_PREFIX_SHARE: '1024'`, which is the new engine default written out. Both changes give the
-same tokens: the agentic replies, which resume from snapshots, matched v1.1.0 on 144 of 144 requests, and so did the
-gate's shared-prefix lane and the exactness lane.
+same tokens: the agentic replies, which resume from snapshots, matched v1.1.0 on 144 of 144 requests; the gate's
+shared-prefix lane returned 16 of 16 codes exact, and the exactness lane matched the 2026-10-19 recipe 32 of 32 at
+C1 and C8.
 
 - Shared-prefix snapshots. When a prompt's system part (the system prompt and tool definitions before the first user,
   assistant or reminder token) is 1,024 tokens or more and matches a stored entry or a prompt in flight, the engine
