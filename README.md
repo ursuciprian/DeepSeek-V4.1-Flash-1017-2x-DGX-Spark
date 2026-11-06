@@ -60,13 +60,13 @@ sparkrun run deepseek-v4.1-flash-1017-2x-dgx-spark --hosts <head>,<worker> \
   -e DS41_MASTER=<head CX-7 IPv4> --no-follow
 ```
 
-Upgrading from v1.1.0: the image changes, and the recipe writes out the new prefix-reuse default. Upgrading from
+Upgrading from v1.2.0: only the image changes (v1.2.1, a fix for CUDA graph captures). Upgrading from v1.1.0: the image changes, and the recipe writes out the new prefix-reuse default. Upgrading from
 v1.0.1: build `/srv/ds41/checkpoint-d1` on both nodes first ([docs/setup.md](docs/setup.md#drafter-d1)), or set
 `model:` back to `/srv/ds41/checkpoint` in your copy of the recipe.
 
 `DS41_MASTER` is the head's address on the CX-7 link. Without it the ranks meet on the head's default-route
 address, which on a Spark is often Wi-Fi. sparkrun pulls the image
-`ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0` (about 11 GB to download, 25 GB unpacked) on the first
+`ghcr.io/ursuciprian/ds41-tensorfold:v1.2.1` (about 11 GB to download, 25 GB unpacked) on the first
 run.
 
 `sparkrun run` returns before the engine is ready. A boot takes about 5 minutes (295-300 s on four boots on my
@@ -265,10 +265,11 @@ and its prefill uses real text, so the bars would not compare; v1.2.0 is left ou
   differs from the booted one in host paths, container mount points, the request log name, how the rendezvous
   address is passed, an extra `SYS_PTRACE` capability for debugging on my boots and the server default top_p (1.0
   on my boots, 0.95 here).
-- Gate: the full release gate passed on the v1.2.0 image with drafter D1 on 2026-10-29, with exactness 32 of 32
-  at C1 and at C8 and the lowest MemAvailable at 5.9 GiB (5.8 during two extra fidelity runs after it).
-- Image: `ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0`, digest `sha256:471ae5c8eb7e7d25806fa6acf9111c30291537e5d96330cc5b36fca305e54338`.
-- In this release: shared-prefix snapshots and the admission reclaim ([#11](../../issues/11), still open).
+- Gate: the full release gate passed on the v1.2.1 build with drafter D1 on 2026-11-06, with exactness 32 of 32
+  at C1 and at C8 and the lowest MemAvailable at 5.6 GiB, two extra fidelity runs included. The tables above are from
+  v1.2.0 (gate 2026-10-29); v1.2.1 changes no kernel and no setting.
+- Image: `ghcr.io/ursuciprian/ds41-tensorfold:v1.2.1`, digest `sha256:d6511e9187edbf8facc632d8a475f457be91f01f611210e34c75329909d6b3b9`.
+- In this release: a fix for a CUDA graph capture crash under torch 2.13 ([notes](docs/releases/v1.2.1.md)). Since v1.2.0: shared-prefix snapshots and the admission reclaim ([#11](../../issues/11), still open).
 - In progress, tracked as issues; each change has to pass the gate before it lands in the recipe:
   - [#13](../../issues/13) a per-tenant isolation key for prefix reuse
   - [#9](../../issues/9) prefill at 4K, [#4](../../issues/4) round overhead outside verify
