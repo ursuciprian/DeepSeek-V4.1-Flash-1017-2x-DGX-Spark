@@ -60,13 +60,13 @@ sparkrun run deepseek-v4.1-flash-1017-2x-dgx-spark --hosts <head>,<worker> \
   -e DS41_MASTER=<head CX-7 IPv4> --no-follow
 ```
 
-Upgrading from v1.1.0: the image changes, and the recipe writes out the new prefix-reuse default. Upgrading from
+Upgrading from v1.2.0: only the image changes (v1.2.1, a fix for CUDA graph captures). Upgrading from v1.1.0: the image changes, and the recipe writes out the new prefix-reuse default. Upgrading from
 v1.0.1: build `/srv/ds41/checkpoint-d1` on both nodes first ([docs/setup.md](docs/setup.md#drafter-d1)), or set
 `model:` back to `/srv/ds41/checkpoint` in your copy of the recipe.
 
 `DS41_MASTER` is the head's address on the CX-7 link. Without it the ranks meet on the head's default-route
 address, which on a Spark is often Wi-Fi. sparkrun pulls the image
-`ghcr.io/ursuciprian/ds41-tensorfold:v1.2.0` (about 11 GB to download, 25 GB unpacked) on the first
+`ghcr.io/ursuciprian/ds41-tensorfold:v1.2.1` (about 11 GB to download, 25 GB unpacked) on the first
 run.
 
 `sparkrun run` returns before the engine is ready. A boot takes about 5 minutes (295-300 s on four boots on my
