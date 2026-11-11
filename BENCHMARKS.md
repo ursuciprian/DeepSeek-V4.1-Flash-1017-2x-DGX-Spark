@@ -3,6 +3,130 @@
 Every number here comes from my two DGX Sparks. The newest results are first; the older sections follow
 unchanged. Chart data for the README: [docs/data/bench.csv](docs/data/bench.csv).
 
+## 2026-11-09: v1.2.2 release recipe
+
+What changed against v1.2.1: one recipe line, `NCCL_MAX_CTAS: '4'`, and the image
+`ghcr.io/ursuciprian/ds41-tensorfold:v1.2.2` (engine commit `bd99990`, from `e5574f9`). The image adds prefill
+logging (`[dsv41 pfrows]`, and `TF_DSV41_MEMPROBE_LOW`, off unless set) and honours a top-level
+`"thinking": {"type": "disabled" | "enabled"}` field. Drafter D1, the weights and every other setting are the same.
+
+Why: NCCL's first exchange maps 128 x 9,416 KiB of pinned host memory per rank (1,225 MiB). I measured that with no
+model on both ranks, and the engine's memory map holds the same 128 mappings. With `NCCL_MAX_CTAS=4` NCCL maps
+122 MiB. No-model all-gathers of 1, 4, 16, 64 and 256 MiB took 0.15, 0.37, 1.24, 5.06 and 17.73 ms with 4 CTAs
+against 0.43-0.93, 0.51-1.08, 1.19-1.68, 5.43-5.44 and 18.2-19.2 ms without (one run each). The engine fills a
+prompt in 2,048-row pieces when free memory allows and in 1,024-row pieces otherwise, and the freed 1.1 GiB is enough
+for 2,048 rows.
+
+Setup: I wrote the keep rule before the first boot (7 numbered lines: exactness, gate, no worse cell, every 32K and
+128K prompt at 2,048 rows, agentic, memory, guards) and checked every line with a script. All seven passed.
+Alternating boots on 2026-11-09, A = v1.2.1 settings, B = A + `NCCL_MAX_CTAS: '4'`, in the order A B B A. All four boots
+ran one image, v1.2.1's engine plus the logging, with `TF_DSV41_MEMPROBE_LOW=30` in both arms, so the NCCL line was the
+only difference. Every boot ran the decode bench, prefill on real text, the agentic buckets and eight 124K-token
+prompts at once; the first B boot also ran exactness, the 27 greedy C1 replies, the full gate and two more fidelity
+runs at 241,157 tokens. Before the boots, the image's tests passed (126), three mutants of the logging code failed
+their tests as required, and the probe cost 0.1 us on a decode round it skips.
+
+### Agentic C8
+
+Same prompt set and method as the v1.2.0 section. Pair 1 = boots A1 and B1, pair 2 = B2 and A2.
+
+| Bucket | Prompt tokens | Pair | Wall A → B | Change | Median TTFT A → B | Prompt tok/s A → B |
+|---|--:|--:|--:|--:|--:|--:|
+| a8k | 7,958 to 8,579 | 1 | 186.3 → 151.3 s | -18.8% | 33.6 → 19.1 s | 1,059 → 1,303 |
+| a8k | | 2 | 186.0 → 145.6 s | -21.7% | 28.0 → 16.8 s | 1,060 → 1,354 |
+| a16k | 15,510 to 17,065 | 1 | 255.5 → 188.8 s | -26.1% | 41.8 → 24.0 s | 1,525 → 2,064 |
+| a16k | | 2 | 252.9 → 187.7 s | -25.8% | 51.7 → 22.0 s | 1,541 → 2,076 |
+| a32k | 28,820 to 33,108 | 1 | 535.8 → 411.7 s | -23.2% | 118.5 → 53.1 s | 1,363 → 1,773 |
+| a32k | | 2 | 522.9 → 419.9 s | -19.7% | 102.2 → 59.2 s | 1,396 → 1,739 |
+
+Replies text-identical between A and B on all 24 requests of every bucket in both pairs (144 of 144). Noise on the
+mean of the two boots, from the spread inside an arm: wall 1.0% to 3.1%, median TTFT 15% to 21%; every bucket's
+wall and TTFT change is larger.
+
+### Eight 124K-token prompts at once
+
+Eight real-text prompts of about 124K tokens (the 128K prefill prompts cut to 95% so that eight fit the
+1,048,576-token pool), each behind a fresh nonce, sent together, up to 1,024 new tokens, T=0.
+
+| | A1 | B1 | B2 | A2 |
+|---|--:|--:|--:|--:|
+| Answered | 8 of 8 | 8 of 8 | 8 of 8 | 8 of 8 |
+| Wall | 642 s | 467 s | 465 s | 695 s |
+| Lowest MemAvailable, rank 0 / rank 1 | 6.28 / 7.18 GiB | 7.15 / 8.41 GiB | 7.30 / 8.46 GiB | 5.96 / 7.21 GiB |
+
+No out-of-memory line and no admission refusal on any boot. The probe's lowest free memory at a round's peak over each
+whole B boot was 5.67 and 5.66 GiB on rank 0 and 6.42 and 6.83 GiB on rank 1 (the rule asked for 4.0).
+
+### Prefill on real text and short-prompt TTFT
+
+3 prompts per length per boot, fresh nonce per prompt. Per request, with the smallest piece size the prompt ran at:
+
+| Boot | 32K, tok/s (rows) | 128K, tok/s (rows) |
+|---|---|---|
+| A1 | 1,793.9 (2,048), 1,792.5 (1,024), 1,602.9 (1,024) | 1,717.6 (1,024), 1,806.2 (1,024), 1,792.8 (1,024) |
+| B1 | 2,058.9, 2,008.0, 2,000.2 (all 2,048) | 2,083.6, 2,132.7, 2,151.6 (all 2,048) |
+| B2 | 2,065.6, 2,001.8, 2,063.9 (all 2,048) | 2,090.4, 2,100.6, 2,147.7 (all 2,048) |
+| A2 | 2,067.2, 1,848.7, 2,059.1 (all 2,048) | 2,015.1, 2,109.1, 2,116.4 (all 2,048) |
+
+| Cell, median of 3 | A1 / A2 | B1 | B2 | Noise | Call |
+|---|--:|--:|--:|--:|---|
+| 4K prefill, tok/s | 819.9 / 853.6 | 1,116.1 | 1,090.6 | 4.03% | better |
+| 32K prefill, tok/s | 1,792.5 / 2,059.1 | 2,008.0 | 2,063.9 | 13.84% | noise |
+| 128K prefill, tok/s | 1,792.8 / 2,109.1 | 2,132.7 | 2,100.6 | 16.21% | noise |
+| TTFT chat, s | 0.368 / 0.335 | 0.303 | 0.307 | 9.39% | better |
+| TTFT completions, s | 0.223 / 0.202 | 0.193 | 0.194 | 9.88% | noise |
+
+The 32K and 128K medians fall inside the A-to-A spread, because A2 ran at 2,048 rows throughout. The 4K cell moves a
+lot inside one boot (662 to 1,258 tok/s on A2), and 4K on these boots was lower than on the v1.2.0 retest, so I do
+not claim a 4K gain.
+
+### Decode
+
+Aggregate tok/s, 512 tokens, 8 short prompts per workload, median of 2 runs per boot, pooled per arm, as in the
+v1.2.0 section.
+
+| Workload | Sampler | C | v1.2.1 | v1.2.2 | Change | Noise |
+|---|---|--:|--:|--:|--:|--:|
+| code | serve | 1 | 91.82 | 98.00 | +6.72% | 10.69% |
+| code | serve | 4 | 122.47 | 141.09 | +15.21% | 23.88% |
+| code | serve | 8 | 168.59 | 175.06 | +3.84% | 4.13% |
+| code | greedy | 1 | 95.08 | 95.70 | +0.65% | 1.10% |
+| prose | serve | 1 | 50.91 | 51.68 | +1.51% | 1.93% |
+| prose | serve | 4 | 97.02 | 100.75 | +3.84% | 4.16% |
+| prose | serve | 8 | 127.89 | 130.28 | +1.86% | 1.01% |
+| prose | greedy | 1 | 54.34 | 55.23 | +1.65% | 1.00% |
+| thinking-75 | serve | 1 | 76.47 | 78.22 | +2.28% | 2.29% |
+| thinking-75 | serve | 4 | 122.19 | 123.57 | +1.13% | 1.00% |
+| thinking-75 | serve | 8 | 140.25 | 144.29 | +2.88% | 1.55% |
+| thinking-75 | greedy | 1 | 81.70 | 82.31 | +0.75% | 1.00% |
+
+No cell is worse beyond noise. Four cells are better beyond noise (prose greedy C1, prose serve C8, thinking-75 serve
+C4 and C8), but A2 decoded slower than A1 in most cells (code serve C4 108.0 against 137.3), so I do not claim a
+decode gain.
+
+### Gate
+
+Full release gate on 2026-11-10, on one boot of this recipe (only the four host paths and the local image tag
+changed, 105 of 105 env keys present on both ranks) with the release build of the v1.2.2 image (engine `bd99990`,
+the same layers as the published image), drafter D1, card sampler (T=1.0, top_p 1.0, top_k 0) on every request. All
+lanes passed: reasoning, tool_turn, tool_only_turn, tc45 (3 of 3), hardmode 93 (bar 88), fidelity 20 of 20 at each
+of six depths (15,940 to 247,292 tokens), prefix 16 of 16, long_session, long_decode, corruption 0. Exactness: token
+IDs identical to the 2026-10-19 recipe in 32 of 32 sequences at C1 and 32 of 32 at C8. 27 greedy C1 replies
+text-identical to the v1.0.1 image. Two more fidelity runs on the same boot after the gate, at 16,072 and 241,157
+tokens: 20 of 20 at both depths in both runs. No admission refusal on that boot. Lowest MemAvailable over the boot,
+the two extra runs included: 6.6 GiB on rank 0, 8.3 GiB on rank 1. The boot was healthy 280 s after start.
+
+Thinking switch on the same boot, one request each: top-level `"thinking": {"type": "disabled"}` returned 0
+reasoning characters, `"enabled"` 57 and no field 57, with the answer "391" in all three.
+
+Engine tests on that image: 407 passed, 19 skipped, 1 failed. The failure
+(`tests/cuda/test_dsv41_host_gpu.py::test_spec_drafted_equals_serial_gpu[4]`) also fails on the v1.2.1 base. Five
+mutants (GC left on in a capture, the row log reporting the configured rows, the probe ignoring the round's peak, the
+probe measuring every decode round, the top-level thinking field ignored) each failed their tests as required.
+
+The A/B boots above ran the earlier build without the thinking switch; on that build the first B boot also passed
+the full gate, exactness at C1 and C8 and the 27 greedy replies.
+
 ## 2026-10-28: v1.2.0 release recipe
 
 What changed against v1.1.0: the engine only, commit `21090db` (from `bb619cf`), image
