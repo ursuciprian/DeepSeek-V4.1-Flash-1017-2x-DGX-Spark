@@ -21,11 +21,11 @@
 # (in the image) uses it unless DS41_MASTER is set. On a Spark that address is often Wi-Fi, so pass the head's
 # CX-7 address with `-e DS41_MASTER=<ip>`. NCCL's RoCE v2 GID index is read from sysfs on each rank at start.
 #
-# Image: v1.2.1 (engine commit e5574f9), digest sha256:d6511e9187edbf8facc632d8a475f457be91f01f611210e34c75329909d6b3b9
+# Image: v1.2.2 (engine commit bd99990), digest sha256:c0eb8c0d12df8ce70856ae6d4dd9f830e8cc89ec52c26251cbdcba8bed73a806
 description: DeepSeek-V4.1-Flash-1017 EXL3 2.9 bpw, TP=2 over two DGX Sparks, Engram rows from local NVMe
 model: /srv/ds41/checkpoint-d1
 runtime: sglang
-container: ghcr.io/ursuciprian/ds41-tensorfold:v1.2.1
+container: ghcr.io/ursuciprian/ds41-tensorfold:v1.2.2
 
 min_nodes: 2
 max_nodes: 2
@@ -75,6 +75,9 @@ env:
   NCCL_SOCKET_IFNAME: enp1s0f1np1
   NCCL_IB_HCA: rocep1s0f1,roceP2p1s0f1
   NCCL_CUMEM_ENABLE: '0'
+  # NCCL keeps about 1.1 GiB less pinned host memory per rank with 4 CTAs (v1.2.2), and large exchanges stay as fast.
+  # That room lets 32K-128K prompts fill in 2,048-row pieces instead of 1,024.
+  NCCL_MAX_CTAS: '4'
   # the engine's own RoCE all-gather over both rails
   GLM53_TF_COMM_BACKEND: roce
   GLM53_TF_ROCE_FAST: '1'
