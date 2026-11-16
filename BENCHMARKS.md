@@ -114,8 +114,11 @@ more fidelity runs on the same boot after the gate, at 16,072 and 241,157 tokens
 No admission refusal on that boot. Lowest MemAvailable over the boot, the extra runs and the eight 124K-token prompts
 included: 7.0 GiB on rank 0, 8.4 GiB on rank 1. The boot was healthy 296 s after start.
 
-Not run on this image: the top-level thinking switch smoke (the request code is the same as in v1.2.2) and the full
-engine test suite of the v1.2.2 release (407 tests); the tests for the changed kernel and the guards above did run.
+Engine test suite of the v1.2.2 release (same 30 files, same command) on the `1e23063` build on 2026-11-16: 407
+passed, 19 skipped, 1 failed. The failure, `test_spec_drafted_equals_serial_gpu[4]` in `tests/cuda/test_dsv41_host_gpu.py`,
+fails with the same assertion on the v1.2.2 image and was the one failure of the v1.2.2 run as well.
+
+Not run on this image before release: the top-level thinking switch smoke (the request code is the same as in v1.2.2).
 
 ## 2026-11-09: v1.2.2 release recipe
 

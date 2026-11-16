@@ -335,7 +335,7 @@ and its prefill uses real text, so the bars would not compare; v1.2.0 is left ou
   The v1.2.3 gate boot ran this file with only the four host paths and the local image tag changed; all 106 env keys
   were present in the containers on both ranks.
 - Gate: the full release gate passed on the v1.2.3 build with drafter D1 on 2026-11-15 ([Quality gate](#quality-gate)).
-- Image: `ghcr.io/ursuciprian/ds41-tensorfold:v1.2.3`, digest `@@DIGEST_V123@@`.
+- Image: `ghcr.io/ursuciprian/ds41-tensorfold:v1.2.3`, digest `sha256:acdbe63c3140661c912aacce0221f8a09ba2b90357ee1fe49bc1f4921b7447cb`.
 - In this release: `TF_DSV41_X3LD_MTILE_FAST: '1'`, a decode kernel launch order ([notes](docs/releases/v1.2.3.md)). Since v1.2.1: `NCCL_MAX_CTAS: '4'`, the top-level thinking switch and prefill logging (v1.2.2). Since v1.2.0: the CUDA graph capture fix (v1.2.1), shared-prefix snapshots and the admission reclaim ([#11](../../issues/11), still open).
 - In progress, tracked as issues; each change has to pass the gate before it lands in the recipe:
   - [#13](../../issues/13) a per-tenant isolation key for prefix reuse
