@@ -280,7 +280,7 @@ card sampler (T=1.0, top_p 1.0).
 | Corruption | 0 corrupted characters |
 | Exactness against the 2026-10-19 recipe, 32 sequences at C1 and at C8 | token-identical, 32 of 32 each |
 | Greedy C1 replies against the v1.0.1 image, 27 replies | text-identical, 27 of 27 |
-| Top-level thinking switch, disabled / enabled / no field | not run on this image; v1.2.2 gate boot: 0 / 57 / 57 reasoning characters, same answer (the request code is unchanged since v1.2.2) |
+| Top-level thinking switch, disabled / enabled / no field | release boot of the published recipe: 0 / 57 / 57 reasoning characters, same answer, identical to the v1.2.2 gate boot |
 | Agentic replies against v1.2.2 settings, 144 requests over two boot pairs (2026-11-15) | text-identical, 144 of 144 |
 | Fast prefill vs exact kernels, logits over 16,376 teacher-forced positions (2026-10-19) | top-1 agreement 0.9982 (bar 0.995), mean KL 7.8e-4 (bar 1e-3) |
 
