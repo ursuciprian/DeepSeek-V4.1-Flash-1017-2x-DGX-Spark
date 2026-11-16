@@ -3,6 +3,120 @@
 Every number here comes from my two DGX Sparks. The newest results are first; the older sections follow
 unchanged. Chart data for the README: [docs/data/bench.csv](docs/data/bench.csv).
 
+## 2026-11-15: v1.2.3 release recipe
+
+What changed against v1.2.2: one recipe line, `TF_DSV41_X3LD_MTILE_FAST: '1'`, and the image
+`ghcr.io/ursuciprian/ds41-tensorfold:v1.2.3` (engine commit `1e23063`, from `bd99990`). The image adds two decode
+options, both off unless set: `TF_DSV41_X3LD_MTILE_FAST`, which the recipe now sets, and `TF_DSV41_ROUTER_TILE4`, which
+did not pass my kernel step and stays off. Drafter D1, the weights and every other setting are the same.
+
+Why: above 16 rows the routed-expert decode kernel (x3ld) splits an expert's rows into two member tiles of 16, and
+the shared expert always has more than 16 rows in such a window. The member tile was the slowest index of the launch
+grid, so the second tile read the same weights a whole slab of work later. With the knob the grid is
+`blockIdx.x = u * MT + tile`, `blockIdx.z = mat * SK + split`: the two tiles of a work item are adjacent programs and
+the second read can hit L2. Each work item keeps its code, K range and output rows, so the output is the same bits.
+On a real layer at 24 rows the kernel step saved 55.5 to 60.7 us a layer, every cell bitwise equal to the old order.
+
+Setup: I wrote the keep rule before the first boot (6 numbered lines: exactness, gate, no worse cell, a decode cell
+better beyond noise, memory, guards) and checked every line with a script. Alternating boots on 2026-11-15, A = v1.2.2
+settings, B = A + `TF_DSV41_X3LD_MTILE_FAST: '1'`, in the order A B B A, all four on the image built from `1e23063` (ds41-tf:dec3b; the v1.2.3 image is that build with labels added). Every boot ran
+the decode bench, prefill on real text, the agentic buckets and eight 124K-token prompts at once; the first B boot also
+ran exactness, the 27 greedy C1 replies, the full gate and two more fidelity runs at 241,157 tokens. Before the boots
+the image's engine files matched commit `1e23063`, its tests for the changed code passed (90 on the GPU and host, 23
+more under the Triton interpreter), and two mutants of the new launch order (tile and work item decoded swapped; the
+grid without the member tiles) failed the bit-for-bit GPU test as required. All six lines passed.
+
+First run. The same A/B with the same image ran on 2026-11-13 under a rule written before it, and missed one line:
+short-prompt time to first token on `/v1/completions` on the first B boot, 0.199 s against 0.196 and 0.198 s on the A
+boots, was called worse (+1.02% at a noise floor of 1.02%). The second B boot had 0.196 s on the same cell. The knob
+only changes windows above 16 rows and a single short completion has none, but the rule stood and nothing shipped.
+This run on 2026-11-15 is the one confirmatory rerun, with the rule text unchanged; I set before it that there would
+be no further rerun whatever the result. On the first run the decode cells moved the same way (code C8 +2.3%,
+thinking-75 C8 +1.8%, code C4 +0.9%, mean of 2 boots) and every other line passed.
+
+### Decode
+
+Aggregate tok/s, 512 tokens, 8 short prompts per workload, median of 2 runs per boot.
+
+| Workload | Sampler | C | v1.2.2, A1 / A2 | v1.2.3, B1 / B2 | v1.2.2, mean | v1.2.3, mean | Change |
+|---|---|--:|--:|--:|--:|--:|--:|
+| code | serve | 1 | 94.20 / 94.88 | 95.11 / 94.68 | 94.54 | 94.90 | +0.38% |
+| code | serve | 4 | 136.02 / 136.53 | 138.73 / 137.43 | 136.28 | 138.08 | +1.32% |
+| code | serve | 8 | 167.86 / 170.15 | 173.35 / 171.83 | 169.00 | 172.59 | +2.12% |
+| code | greedy | 1 | 92.00 / 92.69 | 92.87 / 92.87 | 92.34 | 92.87 | +0.57% |
+| prose | serve | 1 | 50.06 / 50.25 | 50.31 / 50.32 | 50.16 | 50.31 | +0.32% |
+| prose | serve | 4 | 97.08 / 95.80 | 97.30 / 97.62 | 96.44 | 97.46 | +1.06% |
+| prose | serve | 8 | 124.95 / 122.16 | 127.20 / 126.25 | 123.56 | 126.72 | +2.57% |
+| prose | greedy | 1 | 53.49 / 53.82 | 53.84 / 53.93 | 53.66 | 53.89 | +0.43% |
+| thinking-75 | serve | 1 | 75.71 / 75.33 | 76.16 / 75.65 | 75.52 | 75.91 | +0.51% |
+| thinking-75 | serve | 4 | 119.71 / 119.24 | 120.85 / 119.32 | 119.47 | 120.08 | +0.51% |
+| thinking-75 | serve | 8 | 138.90 / 140.63 | 143.44 / 142.86 | 139.76 | 143.15 | +2.42% |
+| thinking-75 | greedy | 1 | 79.47 / 80.30 | 80.11 / 79.80 | 79.88 | 79.95 | +0.09% |
+
+The comparison script called four cells better beyond noise (code serve C4 and C8, prose serve C8, thinking-75 serve
+C8) and none worse. The gain sits where the knob acts: windows above 16 rows, which C8 (and code C4) reach with
+drafts. Serve = card sampler (T=1.0, top_p 1.0), greedy = T=0.
+
+### Agentic C8
+
+Same prompt set and method as the v1.2.2 section. Pair 1 = boots A1 and B1, pair 2 = B2 and A2.
+
+| Bucket | Pair | Wall A → B | Change | Median TTFT A → B |
+|---|--:|--:|--:|--:|
+| a8k | 1 | 163.6 → 149.2 s | -8.8% | 23.26 → 17.26 s |
+| a8k | 2 | 151.0 → 151.4 s | +0.3% | 17.54 → 20.09 s |
+| a16k | 1 | 208.4 → 191.1 s | -8.3% | 29.96 → 22.18 s |
+| a16k | 2 | 189.8 → 188.7 s | -0.6% | 23.67 → 25.32 s |
+| a32k | 1 | 479.3 → 441.8 s | -7.8% | 69.72 → 61.33 s |
+| a32k | 2 | 445.9 → 415.1 s | -6.9% | 62.57 → 59.37 s |
+
+Replies text-identical between A and B on all 24 requests of every bucket in both pairs (144 of 144). No bucket's wall
+or median TTFT was worse beyond noise. The 32K bucket was faster in both pairs (mean -7.38% against a noise band of
+7.22%), but A1 was slower than the other three boots on every bucket, on 8K and 16K A2 matches B, and my rule only
+tests for worse, so I do not claim an agentic gain.
+
+### Eight 124K-token prompts at once
+
+Same prompts and method as the v1.2.2 section.
+
+| | A1 | B1 | B2 | A2 |
+|---|--:|--:|--:|--:|
+| Answered | 8 of 8 | 8 of 8 | 8 of 8 | 8 of 8 |
+| Wall | 474 s | 470 s | 468 s | 467 s |
+| Lowest MemAvailable over the boot, rank 0 / rank 1 | 7.1 / 8.3 GiB | 7.0 / 8.4 GiB | 7.4 / 8.5 GiB | 7.4 / 8.5 GiB |
+
+No out-of-memory line and no admission refusal on any boot. MemAvailable sampled every 20 s over the whole boot.
+
+### Prefill on real text and short-prompt TTFT
+
+3 prompts per length per boot, fresh nonce per prompt, median of 3 per boot.
+
+| Cell | A1 | B1 | B2 | A2 |
+|---|--:|--:|--:|--:|
+| 4K prefill, tok/s | 1,126.7 | 1,111.1 | 1,172.4 | 1,219.2 |
+| 32K prefill, tok/s | 2,031.8 | 2,045.7 | 2,046.4 | 2,041.8 |
+| 128K prefill, tok/s | 2,077.8 | 2,120.6 | 2,145.2 | 2,143.9 |
+| TTFT chat, s | 0.303 | 0.299 | 0.300 | 0.313 |
+| TTFT completions, s | 0.197 | 0.197 | 0.197 | 0.197 |
+
+No cell worse beyond noise. Over all six requests per arm the median was 2,036.3 against 2,046.1 tok/s at 32K and
+2,108.7 against 2,121.0 at 128K (ratio 1.005 and 1.006); I do not claim a prefill change.
+
+### Gate
+
+Full release gate on 2026-11-15, on the first B boot: this recipe with only the four host paths and the local image tag
+changed (106 of 106 env keys present with the recipe's values on both ranks), the v1.2.3 build (engine `1e23063`),
+drafter D1, card sampler (T=1.0, top_p 1.0, top_k 0) on every request. All lanes passed: reasoning, tool_turn,
+tool_only_turn, tc45 (3 of 3), hardmode 93 (bar 88), fidelity 20 of 20 at each of six depths (15,940 to 247,292
+tokens), prefix 16 of 16, long_session, long_decode, corruption 0. Exactness: token IDs identical to the 2026-10-19
+recipe in 32 of 32 sequences at C1 and 32 of 32 at C8. 27 greedy C1 replies text-identical to the v1.0.1 image. Two
+more fidelity runs on the same boot after the gate, at 16,072 and 241,157 tokens: 20 of 20 at both depths in both runs.
+No admission refusal on that boot. Lowest MemAvailable over the boot, the extra runs and the eight 124K-token prompts
+included: 7.0 GiB on rank 0, 8.4 GiB on rank 1. The boot was healthy 296 s after start.
+
+Not run on this image: the top-level thinking switch smoke (the request code is the same as in v1.2.2) and the full
+engine test suite of the v1.2.2 release (407 tests); the tests for the changed kernel and the guards above did run.
+
 ## 2026-11-09: v1.2.2 release recipe
 
 What changed against v1.2.1: one recipe line, `NCCL_MAX_CTAS: '4'`, and the image
