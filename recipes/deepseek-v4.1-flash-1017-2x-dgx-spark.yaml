@@ -21,11 +21,11 @@
 # (in the image) uses it unless DS41_MASTER is set. On a Spark that address is often Wi-Fi, so pass the head's
 # CX-7 address with `-e DS41_MASTER=<ip>`. NCCL's RoCE v2 GID index is read from sysfs on each rank at start.
 #
-# Image: v1.2.2 (engine commit bd99990), digest sha256:c0eb8c0d12df8ce70856ae6d4dd9f830e8cc89ec52c26251cbdcba8bed73a806
+# Image: v1.2.3 (engine commit 1e23063), digest sha256:acdbe63c3140661c912aacce0221f8a09ba2b90357ee1fe49bc1f4921b7447cb
 description: DeepSeek-V4.1-Flash-1017 EXL3 2.9 bpw, TP=2 over two DGX Sparks, Engram rows from local NVMe
 model: /srv/ds41/checkpoint-d1
 runtime: sglang
-container: ghcr.io/ursuciprian/ds41-tensorfold:v1.2.2
+container: ghcr.io/ursuciprian/ds41-tensorfold:v1.2.3
 
 min_nodes: 2
 max_nodes: 2
@@ -175,6 +175,8 @@ env:
   TF_DSV41_RMS_PAIR: '1'
   TF_DSV41_ROPE_INPLACE: '1'
   TF_DSV41_ROUTER: gemv
+  # x3ld walks the member tile fastest in windows above 16 rows (v1.2.3): same bits, code C8 +2.1% in my A/B
+  TF_DSV41_X3LD_MTILE_FAST: '1'
   # prefill: fast kernels with the tuned grouped-GEMM table baked in the image, 2048-row chunks. PF_MOE_LEAN plans
   # the MoE without host syncs, PF_SHARED_SIDE runs the shared expert on a side stream in prefill runs of up to
   # 64 rows, PF_ATTN_STREAMS the attention projections on parallel streams in runs of up to 128 rows (same bits)
